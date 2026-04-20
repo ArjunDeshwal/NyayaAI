@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "skills": {
+    "accessibility": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "computedHash": "6462f04969f59f771150e6410e6a11fa397f2934be0b51e8650f495feed1e28d"
+    },
+    "developing-genkit-dart": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "aa92490e4db5038730c629477ad968796f329040433625cf9b7bb13e26a859e3"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "9e1c8b3103f92fa8092568a44fe64858de7c5c9dc65ce4bea8f168080e889cfd"
+    },
+    "firebase-ai-logic": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "3b3d8994f2ac2e747a1f203488844a7e17b8a25c38e636b221903ae90e3b7c32"
+    },
+    "firebase-auth-basics": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "ff79d278c0968f297d60f37532c32fd3b8bd9aad9c64b9f354585c701e80112a"
+    },
+    "firebase-basics": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "c22edefdc07886432f1361b0412f82ccd53f82d107005acd6dae326f1e106ea7"
+    },
+    "firebase-hosting-basics": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "fb86fd4035e8e6379931faeb443557ac6f2e43fde04b397433f287e69b6532a9"
+    },
+    "flutter-architecting-apps": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "eb8640b807ea631973fa259880abf07d0cb0f26d327da9970e56fbfc95650ada"
+    },
+    "flutter-implementing-navigation-and-routing": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "1ac3fdf915c37ddf8acd943c316e3119dc1436f159b3d8d7f5a4c70eaa1583bd"
+    },
+    "flutter-improving-accessibility": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "f5401121580116e3f1c0a2cb0e2c8865d5fe517e0b9042b4badd505d6fcd4d49"
+    },
+    "flutter-managing-state": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "4ae2c7b298e4da58029e4318efa4d009ff517021296c93b6bcc1c051a5a10085"
+    },
+    "flutter-theming-apps": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "06d864f1951a562f98b00b04f12ae492e3b0e7ddfbef7254f87358c57375a21a"
+    },
+    "gemini-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "a72a3164552bd1764bca52d33806f4578572af3c279611a5bda420b6a9ca68c4"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "69915bb276b6aec61fe5b283a933f96584f66d14b616ce2060d95757629c6866"
+    },
+    "security-review": {
+      "source": "getsentry/skills",
+      "sourceType": "github",
+      "computedHash": "ec9792f5fd065e020c48ab5a57707c83435c286c449ba98dfa726d7b1842c868"
+    },
+    "terraform-style-guide": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "computedHash": "1fb650e4627c740f024b80947964769f5f5d58efff54870cef2791324d5aa451"
+    },
+    "vertex-ai-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "050cf4e9a14ebc86120007c59ea5dd0cf3924037b8a78871d960e0d05a4bac17"
+    },
+    "webapp-testing": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "cf8e5916d474886bd67b09691247f43f331523008b7d366064bc607ab42d6302"
+    }
+  }
+}

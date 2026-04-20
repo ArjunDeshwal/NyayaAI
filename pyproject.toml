@@ -1,0 +1,33 @@
+[project]
+name = "nyayai"
+version = "0.1.0"
+description = "Agentic, India-aware, multi-modal bias auditor for public-interest AI"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "NyayaAI Team", email = "team@nyayai.app" }]
+
+[tool.uv.workspace]
+members = [
+  "services/api",
+  "services/orchestrator",
+  "services/fairness",
+  "services/reporter",
+  "packages/india-taxonomy",
+  "packages/fairlearn-extensions",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "S", "A", "C4", "PT", "RET", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["services", "packages"]
+addopts = "-q --strict-markers"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

@@ -1,0 +1,37 @@
+# Global fallback
+*                                                    @nyayai/tech-lead
+
+# Flutter app
+/apps/flutter/                                       @nyayai/flutter
+/apps/admin/                                         @nyayai/flutter
+
+# Backend services
+/services/api/                                       @nyayai/tech-lead
+/services/orchestrator/                              @nyayai/ml
+/services/fairness/                                  @nyayai/ml
+/services/reporter/                                  @nyayai/ml
+/services/watcher/                                   @nyayai/tech-lead
+
+# Shared packages
+/packages/contracts/                                 @nyayai/tech-lead
+/packages/india-taxonomy/                            @nyayai/product @nyayai/ml
+/packages/fairlearn-extensions/                      @nyayai/ml
+
+# Benchmarks
+/benchmarks/                                         @nyayai/ml @nyayai/product
+
+# Infra & security
+/infra/                                              @nyayai/tech-lead
+/.github/                                            @nyayai/tech-lead
+
+# Docs, compliance, submission
+/docs/COMPLIANCE.md                                  @nyayai/tech-lead @nyayai/product
+/docs/SECURITY.md                                    @nyayai/tech-lead
+/docs/ACCESSIBILITY.md                               @nyayai/flutter @nyayai/product
+/docs/letters/                                       @nyayai/product
+/docs/announcements/                                 @nyayai/product
+/IMPLEMENTATION_PLAN.md                              @nyayai/product @nyayai/tech-lead
+
+# Skills & agents
+/.claude/skills/                                     @nyayai/tech-lead
+/.claude/agents/                                     @nyayai/tech-lead
