@@ -1,0 +1,54 @@
+{
+  "name": "narrator_mudra",
+  "agent": "narrator",
+  "input": {
+    "audit_id": "aud-mudra-001",
+    "plan": {
+      "audit_id": "aud-mudra-001",
+      "steps": [
+        {
+          "step_id": "s1",
+          "kind": "metric",
+          "description": "DP and EO per slice",
+          "target_attributes": ["caste", "gender"]
+        }
+      ],
+      "slices": [["caste"], ["gender"], ["caste", "gender"]],
+      "rationale": "Cover single and intersectional slices.",
+      "estimated_minutes": 6
+    },
+    "metrics": [
+      {
+        "slice_key": "caste=SC",
+        "metric": "demographic_parity_difference",
+        "value": 0.18,
+        "ci_low": 0.12,
+        "ci_high": 0.24,
+        "sample_size": 4321
+      },
+      {
+        "slice_key": "gender=F",
+        "metric": "demographic_parity_difference",
+        "value": 0.09,
+        "ci_low": 0.05,
+        "ci_high": 0.13,
+        "sample_size": 22100
+      },
+      {
+        "slice_key": "caste=SC,gender=F",
+        "metric": "disparate_impact",
+        "value": 0.62,
+        "sample_size": 1180
+      }
+    ],
+    "overall_disparate_impact": 0.68,
+    "timestamp": "2026-04-21T10:00:00+00:00"
+  },
+  "expectations": {
+    "require_keys": ["audit_id", "summary", "per_slice", "recommendations", "disclaimer"],
+    "audit_id_matches_input": true,
+    "min_per_slice_paragraphs": 3,
+    "require_disclaimer_substring": "Fairness Metrics service",
+    "min_recommendations": 1
+  }
+}

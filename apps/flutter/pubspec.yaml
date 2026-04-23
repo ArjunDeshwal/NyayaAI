@@ -1,0 +1,42 @@
+name: nyayai_app
+description: NyayaAI prototype — agentic, India-aware bias auditor (Flutter web).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^14.2.7
+
+  # HTTP + multipart upload
+  http: ^1.2.2
+  http_parser: ^4.0.2
+
+  # File picker (web-compatible)
+  file_picker: ^8.1.2
+
+  # Open external URLs (report HTML / PDF)
+  url_launcher: ^6.3.0
+
+  # Shared Dart contracts (AuditResponse, Regime)
+  nyayai_contracts:
+    path: ../../packages/contracts/dart/nyayai_contracts
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

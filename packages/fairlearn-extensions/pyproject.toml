@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nyayai-fairlearn-ext"
+version = "0.1.0"
+description = "NyayaAI custom India-context fairness metrics (SPLS / LRB / DLF) and thin Fairlearn wrappers"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "NyayaAI Team", email = "team@nyayai.app" }]
+dependencies = [
+  "fairlearn>=0.12",
+  "scikit-learn>=1.6",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pydantic>=2.6",
+  "nyayai-taxonomy",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "hypothesis>=6.100",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nyayai_fairlearn_ext"]
+
+[tool.uv.sources]
+nyayai-taxonomy = { workspace = true }
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

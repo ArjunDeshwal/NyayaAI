@@ -1,0 +1,40 @@
+[project]
+name = "nyayai-orchestrator"
+version = "0.1.0"
+description = "NyayaAI agent orchestrator (Planner, Narrator, Watcher-stub). GSC 2026 prototype."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "NyayaAI Team" },
+]
+dependencies = [
+    "pydantic>=2.6",
+    "typing-extensions>=4.10",
+]
+
+[project.optional-dependencies]
+vertex = [
+    # Real Vertex / google-genai client — imported lazily, never at package import.
+    "google-genai>=0.3.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nyayai_orchestrator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

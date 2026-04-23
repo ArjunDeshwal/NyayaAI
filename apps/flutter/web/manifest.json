@@ -1,0 +1,12 @@
+{
+  "name": "NyayaAI — Bias auditor",
+  "short_name": "NyayaAI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#000080",
+  "description": "Agentic, India-aware bias auditor for public-interest AI.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": []
+}

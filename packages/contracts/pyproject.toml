@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nyayai-contracts"
+version = "0.1.0"
+description = "Shared Pydantic contracts (re-exports; canonical move planned for finals)."
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = ["nyayai-orchestrator"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nyayai_contracts"]

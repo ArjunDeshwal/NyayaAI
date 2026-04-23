@@ -1,0 +1,32 @@
+{
+  "name": "planner_basic",
+  "agent": "planner",
+  "input": {
+    "audit_id": "aud-mudra-001",
+    "goal": "Audit our MUDRA small-business loan model for caste and gender bias across urban and rural districts.",
+    "regime": "DPDP",
+    "model": {
+      "model_id": "mudra-loan-v3",
+      "task": "binary_classification",
+      "description": "Binary classifier: approve / reject small-business loan."
+    },
+    "dataset": {
+      "name": "mudra-lite-2026",
+      "row_count": 50000,
+      "columns": [
+        "applicant_id", "age", "gender", "caste", "state", "district",
+        "urban_rural", "monthly_income", "collateral_value", "approved"
+      ],
+      "candidate_protected_columns": ["gender", "caste", "urban_rural"]
+    },
+    "requested_attributes": ["caste", "gender", "urban_rural"]
+  },
+  "expectations": {
+    "require_keys": ["audit_id", "steps", "slices", "rationale", "estimated_minutes"],
+    "audit_id_matches_input": true,
+    "min_steps": 2,
+    "min_slices": 1,
+    "requires_intersectional_slice": true,
+    "estimated_minutes_max": 10
+  }
+}

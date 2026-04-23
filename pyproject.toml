@@ -14,7 +14,17 @@ members = [
   "services/reporter",
   "packages/india-taxonomy",
   "packages/fairlearn-extensions",
+  "packages/contracts",
 ]
+
+[tool.uv.sources]
+nyayai-api = { workspace = true }
+nyayai-orchestrator = { workspace = true }
+nyayai-fairness = { workspace = true }
+nyayai-reporter = { workspace = true }
+nyayai-taxonomy = { workspace = true }
+nyayai-fairlearn-ext = { workspace = true }
+nyayai-contracts = { workspace = true }
 
 [tool.ruff]
 line-length = 100

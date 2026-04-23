@@ -1,4 +1,4 @@
-.PHONY: help bootstrap lint test test.fast test.ui test.int benchmark benchmark.% eval fmt clean deploy.staging deploy.prod
+.PHONY: help bootstrap lint test test.fast test.ui test.int benchmark benchmark.% eval fmt clean deploy.staging deploy.prod api.dev api.docker
 
 help:
 	@echo "NyayaAI — common commands:"
@@ -13,6 +13,8 @@ help:
 	@echo "  make benchmark.<name>   Run a single benchmark"
 	@echo "  make eval               Genkit agent evals (TS)"
 	@echo "  make clean              Remove build artifacts"
+	@echo "  make api.dev            Run API locally with uvicorn (stub LLM backend)"
+	@echo "  make api.docker         Build the API container"
 	@echo "  make deploy.staging     Deploy to staging"
 	@echo "  make deploy.prod        Deploy to prod (requires approval)"
 
@@ -62,6 +64,7 @@ benchmark.%:
 	cd benchmarks/$* && ./run.sh
 
 eval:
+	cd services/orchestrator && PYTHONPATH=src NYAYAI_LLM_BACKEND=stub python3 evals/run_evals.py --backend stub
 	cd services/orchestrator/evals && pnpm run eval
 
 clean:
@@ -71,6 +74,12 @@ clean:
 	find . -type d -name node_modules -prune -exec rm -rf {} +
 	find . -type d -name .dart_tool -prune -exec rm -rf {} +
 	find . -type d -name build -not -path "*/node_modules/*" -prune -exec rm -rf {} +
+
+api.dev:
+	NYAYAI_LLM_BACKEND=stub uv run --package nyayai-api uvicorn nyayai_api:app --reload --port 8080
+
+api.docker:
+	docker build -f services/api/Dockerfile -t nyayai-api:local .
 
 deploy.staging:
 	./scripts/deploy.sh staging
