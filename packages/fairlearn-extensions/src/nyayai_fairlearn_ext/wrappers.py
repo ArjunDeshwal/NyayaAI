@@ -38,6 +38,7 @@ class GroupFairnessResult:
     tpr_by_group: dict[str, float]
     fpr_by_group: dict[str, float]
     n_by_group: dict[str, int]
+    excluded_groups: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,8 @@ def compute_group_fairness(
     y_true: Sequence[int] | np.ndarray | pd.Series,
     y_pred: Sequence[int] | np.ndarray | pd.Series,
     sensitive: Sequence | pd.Series,
+    *,
+    min_group_n: int = 1,
 ) -> GroupFairnessResult:
     """Standard single-attribute group-fairness bundle.
 
@@ -83,6 +86,11 @@ def compute_group_fairness(
         Binary ground-truth and predicted labels.
     sensitive:
         One sensitive column (e.g. caste or gender).
+    min_group_n:
+        Drop groups with fewer than this many rows before computing DP/EO/TPR
+        aggregates. Small groups (n<20) produce spurious 0.0 / 1.0 ratios that
+        dominate the worst-case aggregation. Excluded groups are reported in
+        ``excluded_groups`` so the Narrator can disclose them.
     """
 
     y_true_a = np.asarray(list(y_true), dtype=int)
@@ -91,6 +99,31 @@ def compute_group_fairness(
 
     if not (len(y_true_a) == len(y_pred_a) == len(s)):
         raise ValueError("y_true, y_pred, sensitive must all be the same length")
+
+    excluded: dict[str, int] = {}
+    if min_group_n > 1:
+        counts = s.value_counts()
+        small = counts[counts < min_group_n]
+        if not small.empty:
+            excluded = {str(g): int(n) for g, n in small.items()}
+            keep_mask = ~s.isin(small.index).to_numpy()
+            y_true_a = y_true_a[keep_mask]
+            y_pred_a = y_pred_a[keep_mask]
+            s = s[keep_mask].reset_index(drop=True)
+            if len(s) == 0 or s.nunique() < 2:
+                # Not enough data to compute group fairness after filtering.
+                return GroupFairnessResult(
+                    demographic_parity_difference=float("nan"),
+                    demographic_parity_ratio=float("nan"),
+                    equalized_odds_difference=float("nan"),
+                    equal_opportunity_difference=float("nan"),
+                    false_positive_rate_difference=float("nan"),
+                    selection_rate_by_group={},
+                    tpr_by_group={},
+                    fpr_by_group={},
+                    n_by_group={},
+                    excluded_groups=excluded,
+                )
 
     dp_diff = float(demographic_parity_difference(y_true=y_true_a, y_pred=y_pred_a, sensitive_features=s))
     dp_ratio = float(demographic_parity_ratio(y_true=y_true_a, y_pred=y_pred_a, sensitive_features=s))
@@ -127,6 +160,7 @@ def compute_group_fairness(
         tpr_by_group=tpr_by_group,
         fpr_by_group=fpr_by_group,
         n_by_group=n_by_group,
+        excluded_groups=excluded,
     )
 
 

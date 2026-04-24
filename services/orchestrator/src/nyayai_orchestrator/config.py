@@ -14,11 +14,16 @@ from typing import Literal
 LLMBackend = Literal["stub", "vertex"]
 
 
-# Canonical 2026 model IDs. Never use deprecated names (PaLM, Bard, Gemini 1.x,
-# `gemini-3-pro-preview`) — an outdated ID is a GSC blocker.
-DEFAULT_PLANNER_MODEL = "gemini-3.1-pro"
-DEFAULT_NARRATOR_MODEL = "gemini-3-flash"
-DEFAULT_WATCHER_MODEL = "gemini-3.1-flash-lite"
+# Canonical 2026 model IDs. Never use deprecated names (PaLM, Bard, Gemini 1.x).
+# Preview suffix is the current GA state for Gemini 3.x as of 2026-04; the
+# Planner drops the suffix automatically once the stable IDs land.
+DEFAULT_PLANNER_MODEL = "gemini-3.1-pro-preview"
+DEFAULT_NARRATOR_MODEL = "gemini-3-flash-preview"
+DEFAULT_WATCHER_MODEL = "gemini-3-flash-preview"
+# Remediation narrative: we keep it on Flash because the reasoning (picking the
+# constraint, fitting the reductions mitigator) is classical — the LLM only
+# writes the plain-language explanation and the pipeline-patch summary.
+DEFAULT_REMEDIATION_MODEL = "gemini-3-flash-preview"
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,7 @@ class Models:
     planner: str
     narrator: str
     watcher: str
+    remediation: str
 
 
 @dataclass(frozen=True)
@@ -61,9 +67,15 @@ def load_config() -> OrchestratorConfig:
             narrator=_env("NYAYAI_MODEL_NARRATOR", DEFAULT_NARRATOR_MODEL)
             or DEFAULT_NARRATOR_MODEL,
             watcher=_env("NYAYAI_MODEL_WATCHER", DEFAULT_WATCHER_MODEL) or DEFAULT_WATCHER_MODEL,
+            remediation=_env("NYAYAI_MODEL_REMEDIATION", DEFAULT_REMEDIATION_MODEL)
+            or DEFAULT_REMEDIATION_MODEL,
         ),
         model_armor_template=_env("NYAYAI_MODEL_ARMOR_TEMPLATE"),
         sdp_template=_env("NYAYAI_SDP_TEMPLATE"),
         project=_env("NYAYAI_GCP_PROJECT"),
-        location=_env("NYAYAI_GCP_LOCATION", "asia-south1") or "asia-south1",
+        # Gemini 3.x preview models are only exposed on the 'global' endpoint;
+        # asia-south1 carries Gemini 2.5. We default to 'global' so the Planner
+        # can actually reach the production-stack model. Override with
+        # NYAYAI_GCP_LOCATION=asia-south1 once the 3.x GA release lands there.
+        location=_env("NYAYAI_GCP_LOCATION", "global") or "global",
     )

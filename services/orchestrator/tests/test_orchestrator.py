@@ -78,6 +78,7 @@ def _deps() -> OrchestratorDeps:
             planner="gemini-3.1-pro",
             narrator="gemini-3-flash",
             watcher="gemini-3.1-flash-lite",
+            remediation="gemini-3-flash",
         ),
         model_armor_template=None,
         sdp_template=None,

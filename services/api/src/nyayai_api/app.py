@@ -92,8 +92,14 @@ def _run(
     out_dir = settings.artifacts_dir / audit_id
     paths = write_all(report, out_dir)
 
+    # Behind Google's HTTPS front-end, Starlette sees scheme=http; rewrite to
+    # https so Flutter (and a judge clicking a link) doesn't get mixed-content
+    # blocked. Cloud Run terminates TLS externally but proxies HTTP internally.
     def url(fmt: str) -> str:
-        return f"{base_url.rstrip('/')}/reports/{audit_id}/{fmt}"
+        base = base_url.rstrip("/")
+        if base.startswith("http://") and ".run.app" in base:
+            base = "https://" + base[len("http://") :]
+        return f"{base}/reports/{audit_id}/{fmt}"
 
     return AuditResponse(
         audit_id=audit_id,

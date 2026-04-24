@@ -16,6 +16,7 @@ from ..schemas import (
     AuditRequest,
     AuditResult,
     DriftFlag,
+    RemediationPlan,
     ReportNarrative,
 )
 
@@ -26,6 +27,7 @@ class ReportRenderInput(BaseModel):
     result: AuditResult
     narrative: ReportNarrative
     drift: DriftFlag
+    remediation: RemediationPlan | None = None
 
 
 class ReportRenderOutput(BaseModel):
@@ -46,5 +48,6 @@ def render_report(payload: ReportRenderInput) -> ReportRenderOutput:
         result=payload.result,
         narrative=payload.narrative,
         drift=payload.drift,
+        remediation=payload.remediation,
     )
     return ReportRenderOutput(report=report, artifact_uri=None)

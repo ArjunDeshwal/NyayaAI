@@ -1,0 +1,59 @@
+{
+  "audit_id": "audit-ca325533f33c",
+  "computed_at": "2026-04-24T17:01:16.604289Z",
+  "dataset_uri": "data/adult.parquet",
+  "protected_columns": [
+    "sex",
+    "race"
+  ],
+  "outcome_column": "income_high",
+  "model_score_column": "model_score",
+  "decision_threshold": 0.5,
+  "n_rows": 48842,
+  "global_metrics": {
+    "n_rows": 48842.0,
+    "positive_rate_true": 0.23928176569346055,
+    "positive_rate_pred": 0.19376765898202367,
+    "agreement": 0.8535891241144916
+  },
+  "per_attribute_metrics": {
+    "sex": {
+      "demographic_parity_difference": 0.17290053054010374,
+      "demographic_parity_ratio": 0.3113927394322533,
+      "equalized_odds_difference": 0.07897050899341818,
+      "equal_opportunity_difference": 0.07897050899341818,
+      "false_positive_rate_difference": 0.0715629744312358
+    },
+    "race": {
+      "demographic_parity_difference": 0.15769222038092212,
+      "demographic_parity_ratio": 0.3401253918495298,
+      "equalized_odds_difference": 0.1654767726161369,
+      "equal_opportunity_difference": 0.1654767726161369,
+      "false_positive_rate_difference": 0.0639082903127847
+    }
+  },
+  "slice_metrics": [],
+  "custom_india_metrics": {
+    "spls": {
+      "score": 0.9312619107953426,
+      "threshold": 0.55,
+      "leaks": true,
+      "n_rows": 48842,
+      "n_features": 12,
+      "protected_cardinality": 2,
+      "note": "5-fold CV roc_auc"
+    },
+    "dlf": null,
+    "lrb": null
+  },
+  "warnings": [
+    "column 'age' maps to protected attribute 'age_cohort' but was not declared as protected; it will be treated as a feature and may leak",
+    "attribute 'sex' fails the 4/5ths rule: DP ratio = 0.311 < 0.80",
+    "attribute 'race' fails the 4/5ths rule: DP ratio = 0.340 < 0.80",
+    "slice ('habitation', 'gender', 'caste_disclosed') skipped: missing columns ['habitation', 'gender', 'caste_disclosed']",
+    "slice ('habitation', 'religion') skipped: missing columns ['habitation', 'religion']",
+    "slice ('mother_tongue', 'typing_cadence_quartile') skipped: missing columns ['mother_tongue', 'typing_cadence_quartile']",
+    "slice ('gender',) skipped: missing columns ['gender']"
+  ],
+  "determinism_hash": "e821e5e38d34f26ef2ed81d4cb649bb97be73ee2f55ff8214bc67fe66ed20438"
+}

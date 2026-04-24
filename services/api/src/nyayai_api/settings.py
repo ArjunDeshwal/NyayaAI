@@ -12,7 +12,14 @@ class Settings(BaseSettings):
     artifacts_dir: Path = Field(default=Path("/tmp/nyayai-artifacts"))
     max_upload_mb: int = 25
     allowed_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:5000", "http://localhost:8080"]
+        default_factory=lambda: [
+            "http://localhost:5000",
+            "http://localhost:8080",
+            "https://nyaya-494216.web.app",
+            "https://nyaya-494216.firebaseapp.com",
+            "https://nyayai.app",
+            "https://www.nyayai.app",
+        ]
     )
 
 

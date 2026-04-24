@@ -103,9 +103,22 @@ def run_audit(req: AuditRequest) -> AuditResult:
     }
 
     # ----- 2. Per-attribute group fairness (wrappers around Fairlearn).
+    # Small subgroups (n < min_slice_n) are excluded from the aggregate to
+    # avoid a 6-row group driving the worst-case DP ratio to 0. They are
+    # re-surfaced as warnings so the Narrator can disclose the suppression.
     per_attribute_metrics: dict[str, dict[str, float]] = {}
     for col in req.protected_columns:
-        gf = compute_group_fairness(y_true, y_pred, df[col])
+        gf = compute_group_fairness(
+            y_true, y_pred, df[col], min_group_n=req.min_slice_n
+        )
+        if gf.excluded_groups:
+            excluded_str = ", ".join(
+                f"{name}({n})" for name, n in sorted(gf.excluded_groups.items())
+            )
+            warnings.append(
+                f"attribute '{col}': {len(gf.excluded_groups)} subgroup(s) "
+                f"excluded from aggregate (n < {req.min_slice_n}): {excluded_str}"
+            )
         per_attribute_metrics[col] = {
             "demographic_parity_difference": gf.demographic_parity_difference,
             "demographic_parity_ratio": gf.demographic_parity_ratio,
@@ -113,10 +126,11 @@ def run_audit(req: AuditRequest) -> AuditResult:
             "equal_opportunity_difference": gf.equal_opportunity_difference,
             "false_positive_rate_difference": gf.false_positive_rate_difference,
         }
-        if gf.demographic_parity_ratio < 0.8:
+        dp_ratio = gf.demographic_parity_ratio
+        if dp_ratio == dp_ratio and dp_ratio < 0.8:  # NaN-safe comparison
             warnings.append(
                 f"attribute '{col}' fails the 4/5ths rule: DP ratio = "
-                f"{gf.demographic_parity_ratio:.3f} < 0.80"
+                f"{dp_ratio:.3f} < 0.80"
             )
 
     # ----- 3. Intersectional slicing

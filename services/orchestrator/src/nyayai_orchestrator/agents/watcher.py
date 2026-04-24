@@ -81,7 +81,7 @@ def run_watcher(
         messages=messages,
         response_schema=_DRIFT_SCHEMA,
         temperature=0.0,
-        max_output_tokens=512,
+        max_output_tokens=2048,
     )
 
     verdict = armor.post_call(response.text)

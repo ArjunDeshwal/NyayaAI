@@ -85,13 +85,16 @@ def _flatten_metrics(fairness_result: Any) -> tuple[list[SliceMetric], float | N
             )
 
     # Overall DI = minimum demographic_parity_ratio across protected attributes
-    # (worst case). Falls back to None if no rate was computable.
+    # (worst case). NaN ratios (attribute had no groups after small-group
+    # filtering) are skipped; if none remain, report None.
+    import math
     di_values = [
-        m["demographic_parity_ratio"]
+        float(m["demographic_parity_ratio"])
         for m in fairness_result.per_attribute_metrics.values()
         if "demographic_parity_ratio" in m
+        and not math.isnan(float(m["demographic_parity_ratio"]))
     ]
-    overall_di = float(min(di_values)) if di_values else None
+    overall_di = min(di_values) if di_values else None
 
     return out, overall_di
 
@@ -147,6 +150,10 @@ def run_fairness_audit(request: AuditRequest, plan: AuditPlan) -> AuditResult:
         model_score_column=ds.model_score_column,
         decision_threshold=ds.decision_threshold,
         intersectional_slices=intersectional or None,
+        # Drop subgroups with n<20 before aggregating DP / EO across groups.
+        # A 6-row JAIN subgroup with 0 positives would otherwise dominate the
+        # worst-case DP ratio and bury the real caste/religion signal.
+        min_slice_n=20,
     )
 
     try:

@@ -1,0 +1,29 @@
+{
+  "pairwise_black_white": {
+    "demographic_parity_difference": 0.2451072146652139,
+    "demographic_parity_ratio": 0.5745131730114521,
+    "equalized_odds_difference": 0.2115821530429738,
+    "equal_opportunity_difference": 0.2115821530429738,
+    "false_positive_rate_difference": 0.203241254922828,
+    "selection_rate_by_group": {
+      "African-American": 0.5760629921259842,
+      "Caucasian": 0.3309557774607703
+    },
+    "tpr_by_group": {
+      "African-American": 0.7152317880794702,
+      "Caucasian": 0.5036496350364964
+    },
+    "fpr_by_group": {
+      "African-American": 0.4233817701453104,
+      "Caucasian": 0.22014051522248243
+    },
+    "fnr_by_group": {
+      "African-American": 0.2847682119205298,
+      "Caucasian": 0.4963503649635036
+    },
+    "n_by_group": {
+      "African-American": 3175,
+      "Caucasian": 2103
+    }
+  }
+}

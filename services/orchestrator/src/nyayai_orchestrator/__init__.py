@@ -19,6 +19,7 @@ from .schemas import (
     AuditRequest,
     AuditResult,
     DriftFlag,
+    RemediationPlan,
     ReportNarrative,
 )
 
@@ -28,6 +29,7 @@ __all__ = [
     "AuditRequest",
     "AuditResult",
     "DriftFlag",
+    "RemediationPlan",
     "ReportNarrative",
     "run_audit",
 ]

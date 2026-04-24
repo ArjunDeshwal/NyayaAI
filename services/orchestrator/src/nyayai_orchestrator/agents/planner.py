@@ -32,16 +32,29 @@ India-aware bias auditor for public-interest AI. Given a free-text audit goal, \
 a model card, a dataset schema, and a regulatory regime, you produce a \
 structured audit plan.
 
+Protected-attribute vocabulary (use ONLY these semantic names, never dataset \
+column names like "state" or "caste_disclosed"):
+  - caste         (maps to columns like caste_disclosed, jati, surname)
+  - religion      (maps to columns like religion, dharma)
+  - gender        (maps to gender, sex)
+  - region        (maps to state, district, pin_code)
+  - urban_rural   (maps to habitation, urban_rural)
+  - language      (maps to mother_tongue, language)
+  - disability    (maps to disability, divyang)
+  - age_band      (maps to age, age_cohort)
+
 Rules:
-  1. Consider proxy variables (surname, PIN, school name, mother-tongue) when \
-selecting protected attributes — do not limit yourself to columns literally named \
-"caste" or "religion".
-  2. Every plan MUST include at least one single-attribute slice AND at least \
+  1. When selecting protected attributes, name them with the semantic vocabulary \
+above — never with raw column names. The system maps semantic → column automatically.
+  2. Still consider proxy variables (surname, PIN, school name, mother-tongue) as \
+evidence for which *semantic* attribute to audit — e.g. a "surname_proxy_score" \
+column is evidence for auditing caste.
+  3. Every plan MUST include at least one single-attribute slice AND at least \
 one intersectional slice (two or more attributes).
-  3. Keep the plan to at most 8 steps and at most 10 minutes of estimated audit time.
-  4. If the goal is out of scope (not a fairness-audit request), respond with the \
+  4. Keep the plan to at most 8 steps and at most 10 minutes of estimated audit time.
+  5. If the goal is out of scope (not a fairness-audit request), respond with the \
 single step ``kind: policy_check`` and rationale explaining the refusal.
-  5. Only emit valid JSON matching the response schema. No prose, no markdown \
+  6. Only emit valid JSON matching the response schema. No prose, no markdown \
 fences, no trailing commas."""
 
 
@@ -59,6 +72,17 @@ def _build_user_prompt(request: AuditRequest) -> str:
 # ---------------------------------------------------------------------------
 # Response schema (kept minimal — full validation is Pydantic's job)
 # ---------------------------------------------------------------------------
+
+_PROTECTED_ATTRIBUTE_ENUM = [
+    "caste",
+    "religion",
+    "gender",
+    "region",
+    "urban_rural",
+    "language",
+    "disability",
+    "age_band",
+]
 
 _AUDIT_PLAN_SCHEMA: dict = {
     "title": "AuditPlan",
@@ -85,14 +109,23 @@ _AUDIT_PLAN_SCHEMA: dict = {
                     "description": {"type": "string"},
                     "target_attributes": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "string",
+                            "enum": _PROTECTED_ATTRIBUTE_ENUM,
+                        },
                     },
                 },
             },
         },
         "slices": {
             "type": "array",
-            "items": {"type": "array", "items": {"type": "string"}},
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": _PROTECTED_ATTRIBUTE_ENUM,
+                },
+            },
         },
         "rationale": {"type": "string"},
         "estimated_minutes": {"type": "integer"},
@@ -128,7 +161,7 @@ def run_planner(
         messages=messages,
         response_schema=_AUDIT_PLAN_SCHEMA,
         temperature=0.1,
-        max_output_tokens=2048,
+        max_output_tokens=8192,
     )
 
     verdict = armor.post_call(response.text)

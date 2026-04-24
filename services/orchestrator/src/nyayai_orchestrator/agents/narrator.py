@@ -41,12 +41,55 @@ paragraph explaining that no slices were evaluated and recommend re-planning.
 no markdown fences."""
 
 
-def _build_user_prompt(result: AuditResult) -> str:
+_NARRATIVE_MAX_SLICES = 12
+
+
+def _condense_for_narrator(result: AuditResult) -> dict:
+    """Narrator narrative must stay under 8k-ish tokens of output; to do that
+    we feed it a *condensed* view — all per-attribute DP ratios (cheap) plus
+    the K intersectional slices with the largest selection-rate spread (the
+    "worst" ones a human would want explained). 54 raw metrics produces 54
+    paragraphs, which always truncates."""
     payload = result.model_dump(mode="json")
+
+    metrics = payload.get("metrics", [])
+    per_attr = [m for m in metrics if m["slice_key"].startswith("attribute=")]
+    inter = [m for m in metrics if not m["slice_key"].startswith("attribute=")]
+    # Group intersectional by slice_key so each slice contributes once.
+    by_slice: dict[str, dict] = {}
+    for m in inter:
+        by_slice.setdefault(m["slice_key"], {"slice_key": m["slice_key"], "metrics": {}, "n": m["sample_size"]})
+        by_slice[m["slice_key"]]["metrics"][m["metric"]] = m["value"]
+
+    # Rank intersectional slices by |selection_rate - overall_rate|.
+    overall_rate = next(
+        (m["value"] for m in inter if m["metric"] == "selection_rate"),
+        0.5,
+    )
+
+    def _spread(entry: dict) -> float:
+        sr = entry["metrics"].get("selection_rate")
+        if sr is None:
+            return 0.0
+        return abs(float(sr) - float(overall_rate))
+
+    worst = sorted(by_slice.values(), key=_spread, reverse=True)[:_NARRATIVE_MAX_SLICES]
+
+    return {
+        "audit_id": payload["audit_id"],
+        "overall_disparate_impact": payload.get("overall_disparate_impact"),
+        "per_attribute_metrics": per_attr,
+        "worst_intersectional_slices": worst,
+    }
+
+
+def _build_user_prompt(result: AuditResult) -> str:
+    payload = _condense_for_narrator(result)
     return (
-        "Audit result (structured):\n"
+        "Audit result (condensed: per-attribute metrics + worst intersectional slices):\n"
         f"{json.dumps(payload, indent=2, sort_keys=True, default=str)}\n\n"
-        "Return the ReportNarrative JSON now."
+        "Write exactly one paragraph per slice in worst_intersectional_slices "
+        "(so at most 12 paragraphs in per_slice). Return the ReportNarrative JSON now."
     )
 
 
@@ -109,7 +152,7 @@ def run_narrator(
         messages=messages,
         response_schema=_NARRATIVE_SCHEMA,
         temperature=0.3,
-        max_output_tokens=2048,
+        max_output_tokens=8192,
     )
 
     verdict = armor.post_call(response.text)

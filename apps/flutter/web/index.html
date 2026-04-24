@@ -23,14 +23,82 @@
     html, body { margin: 0; padding: 0; height: 100%; background: #fafafa; }
     #loading {
       position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
       color: #000080; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 18px; font-weight: 600;
+      font-size: 18px; font-weight: 600; gap: 18px;
+    }
+    #loading .label { text-align: center; }
+    #loading .sublabel {
+      font-size: 13px; font-weight: 400; color: #555;
+      max-width: 340px; text-align: center; line-height: 1.5;
+    }
+    #loading .bar {
+      width: 280px; height: 4px; background: #e0e0ea; border-radius: 2px; overflow: hidden;
+    }
+    #loading .bar > div {
+      height: 100%; width: 25%; background: #000080;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(260%); }
+      100% { transform: translateX(-100%); }
+    }
+    #fallback {
+      display: none; flex-direction: column; align-items: center; gap: 12px;
+      max-width: 420px; text-align: center;
+    }
+    #fallback h3 { margin: 0; color: #8b0000; font-size: 16px; }
+    #fallback p { margin: 0; font-size: 13px; font-weight: 400; color: #444; line-height: 1.5; }
+    #fallback button {
+      margin-top: 4px;
+      padding: 10px 18px; font-size: 14px; font-weight: 600;
+      background: #000080; color: white; border: none; border-radius: 6px; cursor: pointer;
+    }
+    #fallback button:hover { background: #1a1aa8; }
+    #fallback code {
+      background: #f0f0f5; padding: 2px 6px; border-radius: 3px; font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <div id="loading" role="status" aria-live="polite">Loading NyayaAI…</div>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="label">Loading NyayaAI…</div>
+    <div class="bar"><div></div></div>
+    <div class="sublabel">First visit downloads ~7&nbsp;MB of the Flutter engine. Subsequent visits are instant.</div>
+    <div id="fallback" role="alert">
+      <h3>Still loading after 25 seconds.</h3>
+      <p>An old cached version of the app may be blocking this page. Click the button below to clear the cache and reload.</p>
+      <button id="reset-btn">Clear cache &amp; reload</button>
+      <p style="font-size:12px;color:#666;">Alternative: open this URL in a private / incognito window.</p>
+    </div>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // If Flutter hasn't booted in 25s, show the fallback recovery button.
+    // Flutter removes the #loading div on successful boot.
+    setTimeout(function() {
+      var fb = document.getElementById('fallback');
+      if (fb && document.getElementById('loading')) { fb.style.display = 'flex'; }
+    }, 25000);
+
+    document.addEventListener('click', function(e) {
+      if (e.target && e.target.id === 'reset-btn') {
+        (async function() {
+          try {
+            if ('serviceWorker' in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              for (var r of regs) { await r.unregister(); }
+            }
+            if (window.caches) {
+              var keys = await caches.keys();
+              for (var k of keys) { await caches.delete(k); }
+            }
+          } catch (err) { console.warn('reset error', err); }
+          location.reload();
+        })();
+      }
+    });
+  </script>
 </body>
 </html>

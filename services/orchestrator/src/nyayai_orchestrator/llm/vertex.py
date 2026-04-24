@@ -85,16 +85,23 @@ class VertexGeminiClient(GeminiClient):
             if m.role != "system"
         ]
 
+        # Gemini 3.x preview models default to adaptive "thinking" which eats
+        # into the max_output_tokens budget and can truncate JSON output. We
+        # disable thinking for structured generation (the agents do not need
+        # chain-of-thought; they need the schema filled out) via
+        # thinking_budget=0. See google-genai docs for ThinkingConfig.
+        config: dict[str, Any] = {
+            "system_instruction": "\n\n".join(system_parts) or None,
+            "response_mime_type": "application/json",
+            "response_schema": response_schema,
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
+            "thinking_config": {"thinking_budget": 0},
+        }
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config={
-                "system_instruction": "\n\n".join(system_parts) or None,
-                "response_mime_type": "application/json",
-                "response_schema": response_schema,
-                "temperature": temperature,
-                "max_output_tokens": max_output_tokens,
-            },
+            config=config,
         )
 
         text = getattr(response, "text", "") or ""
