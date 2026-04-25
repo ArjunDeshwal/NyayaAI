@@ -31,15 +31,21 @@ void main() {
     final mock = MockClient.streaming((request, body) async {
       captured = request;
       return http.StreamedResponse(
-        Stream.value(utf8.encode(jsonEncode({
-          'audit_id': 'audit_abc123',
-          'status': 'completed',
-          'overall_disparate_impact': 0.82,
-          'drift_level': 'minor',
-          'report_json_url': 'http://test.local/reports/audit_abc123/json',
-          'report_html_url': 'http://test.local/reports/audit_abc123/html',
-          'report_pdf_url': 'http://test.local/reports/audit_abc123/pdf',
-        }))),
+        Stream.value(
+          utf8.encode(
+            jsonEncode({
+              'audit_id': 'audit_abc123',
+              'status': 'completed',
+              'overall_disparate_impact': 0.82,
+              'drift_level': 'minor',
+              'report_json_url':
+                  'http://test.local/reports/audit_abc123/json',
+              'report_html_url':
+                  'http://test.local/reports/audit_abc123/html',
+              'report_pdf_url': 'http://test.local/reports/audit_abc123/pdf',
+            }),
+          ),
+        ),
         200,
         headers: {'content-type': 'application/json'},
       );

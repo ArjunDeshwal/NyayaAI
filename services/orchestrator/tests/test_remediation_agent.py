@@ -147,6 +147,8 @@ def _outcome(audit_id: str) -> RemediationOutcome:
         epsilon=0.05,
         n_train=7000,
         n_test=3000,
+        improved=True,
+        target_group_count=5,
         post_metrics=[],
     )
 

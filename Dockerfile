@@ -16,6 +16,11 @@ WORKDIR /app
 COPY pyproject.toml /app/pyproject.toml
 COPY packages /app/packages
 COPY services /app/services
+# Bundle the parquet sample datasets so /samples and /audit/sample serve them
+# without requiring users to upload anything during the demo. Total ~5 MB.
+COPY benchmarks/mudra-lite/data /app/benchmarks/mudra-lite/data
+COPY benchmarks/uci-adult/data /app/benchmarks/uci-adult/data
+COPY benchmarks/compas/data /app/benchmarks/compas/data
 
 RUN uv pip install --system \
       /app/packages/contracts \

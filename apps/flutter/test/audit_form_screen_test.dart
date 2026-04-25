@@ -38,12 +38,32 @@ Widget _harness() {
 }
 
 void main() {
+  // The audit form is intentionally tall (banner + form + footer). Pin the
+  // surface size to a desktop viewport so off-screen widgets are still
+  // available to find.bySemanticsLabel and tap().
+  setUp(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+  });
+
   testWidgets('renders the landing banner and form controls', (tester) async {
+    tester.view.physicalSize = const Size(1280, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(_harness());
     await tester.pump();
 
-    // Bilingual wordmark is present.
-    expect(find.textContaining('न्याय AI'), findsOneWidget);
+    // The bilingual wordmark lives inside a `RichText` that exposes its
+    // composite text via a `Semantics(label: "NyayaAI, Nyaya A I, ...")`
+    // wrapper. `find.textContaining` does not see RichText fragments, so we
+    // assert via the semantics tree.
+    final SemanticsHandle handle = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel(RegExp('Nyaya')),
+      findsWidgets,
+    );
+    handle.dispose();
 
     // Primary form section header.
     expect(find.text('Run an audit'), findsOneWidget);
@@ -64,10 +84,16 @@ void main() {
 
   testWidgets('submitting without a file surfaces an accessible error',
       (tester) async {
+    tester.view.physicalSize = const Size(1280, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(_harness());
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Run audit'));
+    final submitFinder = find.widgetWithText(FilledButton, 'Run audit');
+    await tester.tap(submitFinder, warnIfMissed: false);
     await tester.pump();
 
     expect(find.text('Please choose a dataset file.'), findsOneWidget);

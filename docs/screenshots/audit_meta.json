@@ -1,0 +1,9 @@
+{
+  "audit_id": "audit_2d8c68ab09d8",
+  "status": "completed",
+  "overall_disparate_impact": 0.4240654205607477,
+  "drift_level": "major",
+  "report_json_url": "https://nyayai-api-149625852311.asia-south1.run.app/reports/audit_2d8c68ab09d8/json",
+  "report_html_url": "https://nyayai-api-149625852311.asia-south1.run.app/reports/audit_2d8c68ab09d8/html",
+  "report_pdf_url": "https://nyayai-api-149625852311.asia-south1.run.app/reports/audit_2d8c68ab09d8/pdf"
+}

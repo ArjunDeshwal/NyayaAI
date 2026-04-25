@@ -157,6 +157,15 @@ class Recommendation(BaseModel):
 class ReportNarrative(BaseModel):
     audit_id: str
     summary: str = Field(min_length=20, max_length=3000)
+    summary_hi: str | None = Field(
+        default=None,
+        max_length=3000,
+        description=(
+            "Hindi (Devanagari) translation of ``summary``. The Narrator emits "
+            "this in the same call so the Flutter UI can render a one-click "
+            "EN / HI toggle on the result card with no second round-trip."
+        ),
+    )
     per_slice: list[SliceParagraph]
     recommendations: list[Recommendation] = Field(max_length=10)
     disclaimer: str = Field(
@@ -193,6 +202,10 @@ class RemediationPlan(BaseModel):
     ``accuracy_delta_pp``) come from the classical remediation tool — the LLM
     never invents them. The LLM writes only ``summary``, ``risks`` and
     ``code_patch_summary``.
+
+    ``improved`` is the ground-truth verdict of the classical keep-or-discard
+    gate: when False, the narrator must not claim improvement and the
+    accompanying numbers reflect the original (un-mitigated) model.
     """
 
     audit_id: str
@@ -205,6 +218,13 @@ class RemediationPlan(BaseModel):
     risks: list[str] = Field(default_factory=list, max_length=10)
     code_patch_summary: str = Field(min_length=10, max_length=2000)
     target_attribute: ProtectedAttribute | None = None
+    # True iff the classical gate accepted the mitigation (meaningful DP lift
+    # without tanking accuracy). When False, the original model is retained
+    # and ``after_dp_ratio`` is stamped equal to ``before_dp_ratio``.
+    improved: bool = False
+    # Group cardinality of the target attribute the tool evaluated (helps the
+    # narrator explain why a high-cardinality target was skipped).
+    target_group_count: int | None = Field(default=None, ge=0)
     disclaimer: str = Field(
         default=(
             "Remediation metrics are produced by a classical Fairlearn "

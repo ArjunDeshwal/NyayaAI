@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nyayai_contracts/nyayai_contracts.dart';
 
 import '../../app/theme.dart';
 import '../../shared/api/api_client.dart';
+import '../../shared/api/sample_dataset.dart';
 import '../../shared/widgets/disclaimer_footer.dart';
 import '../landing/landing_banner.dart';
 import 'audit_form_controller.dart';
 import 'audit_form_state.dart';
 import 'audit_result_view.dart';
+import 'regime_hints.dart';
+import 'widgets/agent_timeline.dart';
 import 'widgets/file_drop_zone.dart';
 import 'widgets/protected_columns_field.dart';
 import 'widgets/regime_selector.dart';
+import 'widgets/sample_chip_row.dart';
 
 class AuditFormScreen extends ConsumerStatefulWidget {
   const AuditFormScreen({super.key});
@@ -32,6 +37,10 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
   PickedFile? _picked;
   String? _fileError;
 
+  /// When non-null, submission flows through `/audit/sample(-stream)` and the
+  /// file picker is disabled.
+  SampleDataset? _selectedSample;
+
   @override
   void dispose() {
     _datasetNameCtrl.dispose();
@@ -49,10 +58,54 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
     });
   }
 
+  /// Map a server-side regime wire string ("DPDP", "EU_AI_ACT", "RBI") to the
+  /// Dart `Regime` enum.
+  Regime _regimeFromWire(String wire) {
+    return switch (wire) {
+      'EU_AI_ACT' => Regime.euAiAct,
+      'RBI' => Regime.rbi,
+      _ => Regime.dpdp,
+    };
+  }
+
+  void _onSampleSelected(SampleDataset ds) {
+    setState(() {
+      _selectedSample = ds;
+      _datasetNameCtrl.text = ds.name;
+      _goalCtrl.text = ds.defaultGoal;
+      _protectedCtrl.text = ds.protectedColumns.join(', ');
+      _outcomeCtrl.text = ds.outcomeColumn;
+      _scoreCtrl.text = ds.modelScoreColumn ?? '';
+      _regime = _regimeFromWire(ds.defaultRegime);
+      _fileError = null;
+      // The bundled dataset replaces the upload — drop any picked file.
+      _picked = null;
+    });
+  }
+
+  void _onSampleCleared() {
+    setState(() => _selectedSample = null);
+  }
+
   Future<void> _submit() async {
-    final fileOk = _picked != null;
     final formOk = _formKey.currentState?.validate() ?? false;
 
+    // Sample path — no file required.
+    if (_selectedSample != null) {
+      if (!formOk) return;
+      await ref.read(auditFormControllerProvider.notifier).submitSample(
+            AuditSampleRequest(
+              sampleId: _selectedSample!.id,
+              goal: _goalCtrl.text.trim(),
+              regime: _regime,
+            ),
+            datasetLabel: _selectedSample!.name,
+          );
+      return;
+    }
+
+    // Upload path — file is mandatory.
+    final fileOk = _picked != null;
     if (!fileOk) {
       setState(() => _fileError = 'Please choose a dataset file.');
     }
@@ -76,7 +129,7 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
       filename: _picked!.name,
     );
 
-    await ref.read(auditFormControllerProvider.notifier).submit(req);
+    await ref.read(auditFormControllerProvider.notifier).submitUpload(req);
   }
 
   @override
@@ -95,11 +148,25 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _TopBar(),
                     const LandingBanner(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(40, 32, 40, 24),
                       child: _buildFormCard(state, submitting),
                     ),
+                    if (state.timeline != null && !state.hasResult)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(40, 0, 40, 24),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: AgentTimeline(
+                            key: ValueKey<bool>(state.hasError),
+                            timeline: state.timeline!,
+                            errorMessage:
+                                state.hasError ? state.errorMessage : null,
+                          ),
+                        ),
+                      ),
                     if (state.hasResult)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(40, 0, 40, 32),
@@ -117,6 +184,9 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
   }
 
   Widget _buildFormCard(AuditFormState state, bool submitting) {
+    final hint = RegimeHint.forRegime(_regime);
+    final usingSample = _selectedSample != null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -140,14 +210,25 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                 'narrative — then render a regulator-ready audit report.',
                 style: TextStyle(color: NyayaColors.muted, fontSize: 14),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              FileDropZone(
-                picked: _picked,
-                enabled: !submitting,
-                onPicked: _onPicked,
+              // Feature A — bundled-dataset preset chips.
+              SampleChipRow(
+                selectedSampleId: _selectedSample?.id,
+                onSelected: submitting ? (_) {} : _onSampleSelected,
+                onCleared: submitting ? () {} : _onSampleCleared,
               ),
-              if (_fileError != null) ...[
+              const SizedBox(height: 20),
+
+              if (usingSample)
+                _BundledPill(label: _selectedSample!.name)
+              else
+                FileDropZone(
+                  picked: _picked,
+                  enabled: !submitting,
+                  onPicked: _onPicked,
+                ),
+              if (_fileError != null && !usingSample) ...[
                 const SizedBox(height: 8),
                 Semantics(
                   liveRegion: true,
@@ -177,17 +258,19 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Feature E — placeholder + helper text follow the regime.
               TextFormField(
                 controller: _goalCtrl,
                 enabled: !submitting,
                 minLines: 3,
                 maxLines: 6,
                 maxLength: 2000,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Audit goal',
-                  hintText:
-                      'What is this model supposed to do? Which outcomes must be equitable?',
-                  prefixIcon: Icon(Icons.flag_outlined),
+                  hintText: hint.placeholder,
+                  helperText: hint.helper,
+                  helperMaxLines: 3,
+                  prefixIcon: const Icon(Icons.flag_outlined),
                 ),
                 validator: (v) {
                   final t = v?.trim() ?? '';
@@ -313,6 +396,7 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                                 _picked = null;
                                 _fileError = null;
                                 _regime = Regime.dpdp;
+                                _selectedSample = null;
                               });
                               ref
                                   .read(auditFormControllerProvider.notifier)
@@ -323,31 +407,105 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                   ),
                 ],
               ),
-
-              if (submitting) ...[
-                const SizedBox(height: 20),
-                Semantics(
-                  liveRegion: true,
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          state.progressHint ?? 'Running 3 agents…',
-                          style: const TextStyle(color: NyayaColors.muted),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top bar with the History link (Feature F entry point).
+class _TopBar extends StatelessWidget {
+  const _TopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(40, 12, 24, 12),
+      decoration: const BoxDecoration(
+        color: NyayaColors.card,
+        border: Border(bottom: BorderSide(color: NyayaColors.border)),
+      ),
+      child: Row(
+        children: [
+          ExcludeSemantics(
+            child: Text(
+              'NyayaAI',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: NyayaColors.navy,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+            ),
+          ),
+          const Spacer(),
+          Semantics(
+            button: true,
+            label: 'View past audits stored in this browser.',
+            child: TextButton.icon(
+              onPressed: () => context.go('/history'),
+              icon: const Icon(Icons.history, size: 18),
+              label: const Text('History'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pill shown in place of the file-drop zone when a bundled preset is active.
+class _BundledPill extends StatelessWidget {
+  const _BundledPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'Using bundled dataset: $label. No upload required.',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          color: NyayaColors.saffron.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: NyayaColors.saffron, width: 2),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.dataset, size: 24, color: NyayaColors.navy),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ExcludeSemantics(
+                    child: Text(
+                      'Using bundled $label (no upload needed)',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: NyayaColors.ink,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const ExcludeSemantics(
+                    child: Text(
+                      'Submission will run on the server-side preset.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: NyayaColors.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -8,6 +8,9 @@ import 'package:http_parser/http_parser.dart';
 import 'package:nyayai_contracts/nyayai_contracts.dart';
 
 import 'api_config.dart';
+import 'audit_report.dart';
+import 'audit_stream_event.dart';
+import 'sample_dataset.dart';
 
 /// Upload payload for `POST /audit/upload` — mirrors the FastAPI `Form` fields.
 class AuditUploadRequest {
@@ -36,6 +39,29 @@ class AuditUploadRequest {
   final String filename;
 }
 
+/// Body for `POST /audit/sample` and `POST /audit/sample-stream`.
+class AuditSampleRequest {
+  const AuditSampleRequest({
+    required this.sampleId,
+    this.goal,
+    this.regime,
+  });
+
+  final String sampleId;
+
+  /// Optional goal override. When null, the server's bundled default applies.
+  final String? goal;
+
+  /// Optional regime override.
+  final Regime? regime;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'sample_id': sampleId,
+        if (goal != null && goal!.trim().isNotEmpty) 'goal': goal!.trim(),
+        if (regime != null) 'regime': regime!.wire,
+      };
+}
+
 class AuditApiException implements Exception {
   AuditApiException(this.message, {this.statusCode});
 
@@ -58,9 +84,160 @@ class NyayaApiClient {
   final http.Client _client;
   final Duration timeout;
 
+  // ---------------------------------------------------------------------------
+  // Synchronous (non-streaming) endpoints — original code path.
+  // ---------------------------------------------------------------------------
+
   Future<AuditResponse> submitAudit(AuditUploadRequest req) async {
     final uri = config.endpoint('/audit/upload');
+    final request = _buildUploadRequest(uri, req);
 
+    final http.StreamedResponse streamed;
+    try {
+      streamed = await _client.send(request).timeout(timeout);
+    } on TimeoutException {
+      throw AuditApiException('Audit timed out after ${timeout.inSeconds}s.');
+    } catch (e) {
+      throw AuditApiException('Network error: $e');
+    }
+
+    final body = await streamed.stream.bytesToString();
+
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      throw AuditApiException(
+        _extractDetail(body),
+        statusCode: streamed.statusCode,
+      );
+    }
+
+    try {
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      return AuditResponse.fromJson(json);
+    } catch (e) {
+      throw AuditApiException('Malformed response: $e');
+    }
+  }
+
+  /// `POST /audit/sample` — synchronous fallback for the preset path.
+  Future<AuditResponse> submitSample(AuditSampleRequest req) async {
+    final uri = config.endpoint('/audit/sample');
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: const {'content-type': 'application/json'},
+            body: jsonEncode(req.toJson()),
+          )
+          .timeout(timeout);
+    } on TimeoutException {
+      throw AuditApiException('Audit timed out after ${timeout.inSeconds}s.');
+    } catch (e) {
+      throw AuditApiException('Network error: $e');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuditApiException(
+        _extractDetail(response.body),
+        statusCode: response.statusCode,
+      );
+    }
+    try {
+      return AuditResponse.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    } catch (e) {
+      throw AuditApiException('Malformed response: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sample catalog.
+  // ---------------------------------------------------------------------------
+
+  Future<List<SampleDataset>> fetchSamples() async {
+    final uri = config.endpoint('/samples');
+    final http.Response response;
+    try {
+      response = await _client.get(uri).timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw AuditApiException('Sample-catalog request timed out.');
+    } catch (e) {
+      throw AuditApiException('Network error: $e');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuditApiException(
+        _extractDetail(response.body),
+        statusCode: response.statusCode,
+      );
+    }
+    try {
+      final list = jsonDecode(response.body) as List;
+      return list
+          .whereType<Map<dynamic, dynamic>>()
+          .map((m) => SampleDataset.fromJson(Map<String, dynamic>.from(m)))
+          .toList(growable: false);
+    } catch (e) {
+      throw AuditApiException('Malformed /samples response: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Full report — used to fetch narrative.summary_hi, remediation, metrics.
+  // ---------------------------------------------------------------------------
+
+  Future<AuditReport> fetchReport(String auditId) async {
+    final uri = config.endpoint('/reports/$auditId/json');
+    final http.Response response;
+    try {
+      response = await _client.get(uri).timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw AuditApiException('Report fetch timed out.');
+    } catch (e) {
+      throw AuditApiException('Network error: $e');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuditApiException(
+        _extractDetail(response.body),
+        statusCode: response.statusCode,
+      );
+    }
+    try {
+      return AuditReport.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    } catch (e) {
+      throw AuditApiException('Malformed report JSON: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Streaming endpoints — NDJSON, one event per line.
+  // ---------------------------------------------------------------------------
+
+  /// Stream of NDJSON events from `POST /audit/sample-stream`.
+  Stream<AuditStreamEvent> streamSample(AuditSampleRequest req) {
+    final uri = config.endpoint('/audit/sample-stream');
+    final request = http.Request('POST', uri)
+      ..headers['content-type'] = 'application/json'
+      ..headers['accept'] = 'application/x-ndjson'
+      ..body = jsonEncode(req.toJson());
+    return _streamNdjson(request);
+  }
+
+  /// Stream of NDJSON events from `POST /audit/upload-stream`.
+  Stream<AuditStreamEvent> streamUpload(AuditUploadRequest req) {
+    final uri = config.endpoint('/audit/upload-stream');
+    final request = _buildUploadRequest(uri, req)
+      ..headers['accept'] = 'application/x-ndjson';
+    return _streamNdjson(request);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internals.
+  // ---------------------------------------------------------------------------
+
+  http.MultipartRequest _buildUploadRequest(Uri uri, AuditUploadRequest req) {
     final request = http.MultipartRequest('POST', uri)
       ..fields['dataset_name'] = req.datasetName
       ..fields['goal'] = req.goal
@@ -85,37 +262,56 @@ class NyayaApiClient {
         contentType: mime,
       ),
     );
+    return request;
+  }
 
+  /// Sends `request` and parses the response stream as NDJSON. Each
+  /// non-blank line is decoded into an [AuditStreamEvent]. Lines that fail to
+  /// decode are skipped (we still want the rest of the timeline to render).
+  Stream<AuditStreamEvent> _streamNdjson(http.BaseRequest request) async* {
     final http.StreamedResponse streamed;
     try {
       streamed = await _client.send(request).timeout(timeout);
     } on TimeoutException {
-      throw AuditApiException('Audit timed out after ${timeout.inSeconds}s.');
+      throw AuditApiException('Audit stream timed out after '
+          '${timeout.inSeconds}s.');
     } catch (e) {
       throw AuditApiException('Network error: $e');
     }
 
-    final body = await streamed.stream.bytesToString();
-
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
-      String detail = body;
+      final body = await streamed.stream.bytesToString();
+      throw AuditApiException(
+        _extractDetail(body),
+        statusCode: streamed.statusCode,
+      );
+    }
+
+    final lines = streamed.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+    await for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
       try {
-        final decoded = jsonDecode(body);
-        if (decoded is Map && decoded['detail'] != null) {
-          detail = decoded['detail'].toString();
+        final json = jsonDecode(line);
+        if (json is Map<String, dynamic>) {
+          yield AuditStreamEvent.fromJson(json);
         }
       } catch (_) {
-        // leave raw body as detail
+        // Skip malformed lines — the stream is best-effort.
       }
-      throw AuditApiException(detail, statusCode: streamed.statusCode);
     }
+  }
 
+  String _extractDetail(String body) {
     try {
-      final json = jsonDecode(body) as Map<String, dynamic>;
-      return AuditResponse.fromJson(json);
-    } catch (e) {
-      throw AuditApiException('Malformed response: $e');
-    }
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['detail'] != null) {
+        return decoded['detail'].toString();
+      }
+    } catch (_) {/* fall through */}
+    return body;
   }
 
   void close() => _client.close();

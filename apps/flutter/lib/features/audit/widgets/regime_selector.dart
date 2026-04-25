@@ -36,7 +36,7 @@ class RegimeSelector extends StatelessWidget {
       label:
           'Regulatory regime. Choose DPDP 2023, EU AI Act, or RBI guidance. Current value: ${_entries[value]!.label}.',
       child: DropdownButtonFormField<Regime>(
-        value: value,
+        initialValue: value,
         onChanged: enabled
             ? (v) {
                 if (v != null) onChanged(v);

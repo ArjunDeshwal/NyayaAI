@@ -29,6 +29,12 @@ dependencies:
   # Open external URLs (report HTML / PDF)
   url_launcher: ^6.3.0
 
+  # Charting (before/after remediation bar chart on the result card)
+  fl_chart: ^0.69.0
+
+  # Web platform interop — used for browser-localStorage history.
+  web: ^1.1.0
+
   # Shared Dart contracts (AuditResponse, Regime)
   nyayai_contracts:
     path: ../../packages/contracts/dart/nyayai_contracts

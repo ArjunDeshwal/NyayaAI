@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nyayai_contracts/nyayai_contracts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../shared/api/audit_report.dart';
 import '../../shared/widgets/metric_badge.dart';
+import 'audit_report_provider.dart';
+import 'narrative_language.dart';
+import 'widgets/remediation_chart.dart';
 
-class AuditResultView extends StatelessWidget {
+class AuditResultView extends ConsumerWidget {
   const AuditResultView({super.key, required this.response});
 
   final AuditResponse response;
@@ -22,7 +27,7 @@ class AuditResultView extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final di = response.overallDisparateImpact;
     final passes = response.passesFourFifths;
 
@@ -32,6 +37,11 @@ class AuditResultView extends StatelessWidget {
       'major' => BadgeKind.fail,
       _ => BadgeKind.noData,
     };
+
+    // Fetch the full report (narrative + remediation + per-attribute metrics).
+    final asyncReport = response.auditId.isEmpty
+        ? const AsyncValue<AuditReport?>.data(null)
+        : ref.watch(auditReportProvider(response.auditId)).whenData<AuditReport?>((r) => r);
 
     return Semantics(
       container: true,
@@ -44,8 +54,11 @@ class AuditResultView extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.check_circle_outline,
-                      color: NyayaColors.ok, size: 24),
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: NyayaColors.ok,
+                    size: 24,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Semantics(
@@ -55,6 +68,13 @@ class AuditResultView extends StatelessWidget {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ),
+                  ),
+                  // EN / HI toggle (top-right of the result card).
+                  asyncReport.maybeWhen(
+                    data: (report) => _LanguageToggle(
+                      hasHindi: report?.narrative.hasHindi ?? false,
+                    ),
+                    orElse: () => const _LanguageToggle(hasHindi: false),
                   ),
                 ],
               ),
@@ -135,6 +155,54 @@ class AuditResultView extends StatelessWidget {
                 ],
               ),
 
+              // Narrative summary (English / Hindi toggle).
+              asyncReport.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: _LoadingNarrative(),
+                ),
+                error: (e, _) => const SizedBox.shrink(),
+                data: (report) {
+                  if (report == null) return const SizedBox.shrink();
+                  return _NarrativePanel(report: report);
+                },
+              ),
+
+              // Before/after remediation chart.
+              asyncReport.when(
+                loading: () => const SizedBox.shrink(),
+                error: (e, _) => const SizedBox.shrink(),
+                data: (report) {
+                  if (report == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            'Before vs. after remediation',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Per-attribute demographic-parity ratios. The 0.8 '
+                          'line marks the four-fifths rule.',
+                          style: TextStyle(
+                            color: NyayaColors.muted,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        RemediationChart(report: report),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
@@ -175,6 +243,152 @@ class AuditResultView extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingNarrative extends StatelessWidget {
+  const _LoadingNarrative();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        SizedBox(width: 10),
+        Text(
+          'Loading narrative summary…',
+          style: TextStyle(color: NyayaColors.muted, fontSize: 13),
+        ),
+      ],
+    );
+  }
+}
+
+class _NarrativePanel extends ConsumerWidget {
+  const _NarrativePanel({required this.report});
+
+  final AuditReport report;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(narrativeLanguageProvider);
+    final hasHindi = report.narrative.hasHindi;
+    final effectiveLang =
+        (lang == NarrativeLanguage.hi && !hasHindi) ? NarrativeLanguage.en : lang;
+
+    final body = effectiveLang == NarrativeLanguage.hi
+        ? report.narrative.summaryHi
+        : report.narrative.summary;
+
+    if (body == null || body.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final isHindi = effectiveLang == NarrativeLanguage.hi;
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: NyayaColors.bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: NyayaColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.format_quote, size: 18, color: NyayaColors.navy),
+                const SizedBox(width: 6),
+                Text(
+                  'Narrative summary',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontSize: 15,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Semantics(
+              label: isHindi
+                  ? 'Narrative summary in Hindi.'
+                  : 'Narrative summary in English.',
+              child: SelectableText(
+                body,
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.55,
+                  color: NyayaColors.ink,
+                  // Hindi script needs a slightly larger line-height.
+                  letterSpacing: isHindi ? 0.0 : 0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageToggle extends ConsumerWidget {
+  const _LanguageToggle({required this.hasHindi});
+
+  /// `true` when the current report has a `summary_hi` field. When `false`,
+  /// the HI button is disabled with a tooltip.
+  final bool hasHindi;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(narrativeLanguageProvider);
+    return Semantics(
+      container: true,
+      label: 'Narrative language toggle. Currently '
+          '${lang == NarrativeLanguage.hi && hasHindi ? "Hindi" : "English"}.',
+      child: SegmentedButton<NarrativeLanguage>(
+        segments: <ButtonSegment<NarrativeLanguage>>[
+          const ButtonSegment(
+            value: NarrativeLanguage.en,
+            label: Text('EN'),
+            icon: Icon(Icons.translate, size: 16),
+          ),
+          ButtonSegment(
+            value: NarrativeLanguage.hi,
+            label: Tooltip(
+              message: hasHindi
+                  ? 'Hindi'
+                  : 'Translation not available for this audit',
+              child: const Text('हिन्दी'),
+            ),
+            enabled: hasHindi,
+          ),
+        ],
+        selected: <NarrativeLanguage>{
+          (lang == NarrativeLanguage.hi && !hasHindi)
+              ? NarrativeLanguage.en
+              : lang,
+        },
+        onSelectionChanged: (selection) {
+          if (selection.isEmpty) return;
+          final next = selection.first;
+          if (next == NarrativeLanguage.hi && !hasHindi) return;
+          ref.read(narrativeLanguageProvider.notifier).set(next);
+        },
+        showSelectedIcon: false,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          textStyle: WidgetStateProperty.all(
+            const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
       ),

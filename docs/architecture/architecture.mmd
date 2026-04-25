@@ -1,0 +1,81 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Inter, -apple-system, system-ui, sans-serif',
+    'primaryColor': '#FFF5E6',
+    'primaryTextColor': '#000080',
+    'primaryBorderColor': '#FF9933',
+    'lineColor': '#000080',
+    'secondaryColor': '#E8E8F5',
+    'tertiaryColor': '#E5F5E0'
+  }
+}}%%
+
+flowchart TB
+    User[/" User<br/>(NGO worker · compliance officer · regulator)"/]:::userStyle
+
+    subgraph Frontend["🌐 Frontend  ·  Firebase Hosting"]
+        Flutter["Flutter Web<br/>nyaya-494216.web.app<br/><br/>• Sample-chip row<br/>• Live agent timeline<br/>• Before/after chart<br/>• EN ↔ हिन्दी toggle<br/>• localStorage history"]:::flutterStyle
+    end
+
+    subgraph CloudRun["☁️ Cloud Run  ·  asia-south1 (Mumbai)"]
+        API["FastAPI Gateway<br/>nyayai-api revision 00006-htn<br/><br/>• /samples<br/>• /audit/sample-stream (NDJSON)<br/>• /audit/upload-stream (NDJSON)<br/>• /reports/{id}/{json,html,pdf}"]:::apiStyle
+    end
+
+    subgraph Agents["🤖 Agent layer  ·  Vertex AI Agent Engine + ADK"]
+        Planner["Planner<br/>Gemini 3.1 Pro<br/><br/>schema + goal + regime → AuditPlan"]:::geminiStyle
+        Narrator["Narrator<br/>Gemini 3 Flash<br/><br/>numbers → EN + हिन्दी narrative"]:::geminiStyle
+        Watcher["Watcher<br/>Gemini 3 Flash<br/><br/>drift classifier"]:::geminiStyle
+        Remediation["Remediation<br/>Gemini 3 Flash<br/><br/>narrates the lift"]:::geminiStyle
+    end
+
+    subgraph Classical["📐 Classical layer  ·  no LLM, by design"]
+        Fairness["Fairness Engine<br/>Fairlearn 0.13<br/><br/>• Group fairness<br/>• Intersectional slicing<br/>• DP suppression (n &lt; 20)<br/>• SPLS · LRB · DLF"]:::classicalStyle
+        RemediationTool["Remediation Tool<br/>Fairlearn reductions<br/><br/>• ExpGrad + DemoParity<br/>• ε-sweep 0.005-0.25<br/>• Shape filter ≤10 groups<br/>• Keep-or-discard gate"]:::classicalStyle
+    end
+
+    subgraph Security["🛡️ Security perimeter  ·  every LLM call"]
+        Armor["Model Armor<br/>prompt-injection + harmful-output defence"]:::secStyle
+        SDP["Sensitive Data Protection<br/>Aadhaar · PAN · phone · email redaction"]:::secStyle
+    end
+
+    subgraph DataPlane["💾 Data plane  ·  asia-south1 + CMEK-ready"]
+        Firestore["Firestore<br/>(history)"]:::dataStyle
+        Storage["Cloud Storage<br/>(uploads + reports, CMEK)"]:::dataStyle
+        KMS["Cloud KMS<br/>(asia-south1)"]:::dataStyle
+    end
+
+    Report[("📄 Audit report<br/>JSON · HTML · PDF<br/><br/>DPDP Rule 13<br/>EU AI Act Art. 9-15<br/>RBI Digital Lending")]:::reportStyle
+
+    User -- "①  HTTPS<br/>upload or pick sample" --> Flutter
+    Flutter -- "②  POST /audit/sample-stream" --> API
+    API -- "③  Plan" --> Planner
+    Planner -- "④  AuditPlan" --> Fairness
+    Fairness -- "⑤  AuditResult" --> Narrator
+    Fairness -. "⑤b" .-> Watcher
+    Fairness -- "⑥  fails 4/5ths?" --> RemediationTool
+    RemediationTool -- "⑦  RemediationOutcome" --> Remediation
+
+    Planner -.-> Armor
+    Narrator -.-> Armor
+    Watcher -.-> Armor
+    Remediation -.-> Armor
+    Armor -.-> SDP
+
+    API <-.-> Storage
+    API <-.-> Firestore
+    Storage -.-> KMS
+
+    Narrator --> Report
+    Watcher --> Report
+    Remediation --> Report
+    Report -- "⑧  NDJSON 'complete' event" --> Flutter
+
+    classDef userStyle fill:#FFE5CC,stroke:#FF9933,stroke-width:2px,color:#000080
+    classDef flutterStyle fill:#E8E8F5,stroke:#000080,stroke-width:2px,color:#000080
+    classDef apiStyle fill:#E8E8F5,stroke:#000080,stroke-width:2px,color:#000080
+    classDef geminiStyle fill:#E5F5E0,stroke:#138808,stroke-width:2px,color:#0D5005
+    classDef classicalStyle fill:#FFF5E6,stroke:#B45309,stroke-width:2px,color:#5C3A00
+    classDef secStyle fill:#FEE2E2,stroke:#B91C1C,stroke-width:2px,color:#5C0E0E
+    classDef dataStyle fill:#F0F0F5,stroke:#444,stroke-width:1px,color:#1A1A1A
+    classDef reportStyle fill:#FFE5CC,stroke:#FF9933,stroke-width:3px,color:#000080

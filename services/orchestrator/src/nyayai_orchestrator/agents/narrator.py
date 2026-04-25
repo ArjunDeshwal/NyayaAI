@@ -37,7 +37,11 @@ metric formula is.
 legal effect.
   4. If the audit result is empty (no metrics), return a single summary \
 paragraph explaining that no slices were evaluated and recommend re-planning.
-  5. Only emit valid JSON matching the response schema. No prose outside JSON, \
+  5. Always emit a ``summary_hi`` field — a faithful Devanagari-Hindi \
+translation of ``summary``. Do not transliterate; produce natural Hindi prose. \
+Keep technical terms like "demographic parity ratio" in English in parentheses \
+the first time they appear. Length: similar to the English ``summary``.
+  6. Only emit valid JSON matching the response schema. No prose outside JSON, \
 no markdown fences."""
 
 
@@ -96,10 +100,11 @@ def _build_user_prompt(result: AuditResult) -> str:
 _NARRATIVE_SCHEMA: dict = {
     "title": "ReportNarrative",
     "type": "object",
-    "required": ["audit_id", "summary", "per_slice", "recommendations"],
+    "required": ["audit_id", "summary", "summary_hi", "per_slice", "recommendations"],
     "properties": {
         "audit_id": {"type": "string"},
         "summary": {"type": "string"},
+        "summary_hi": {"type": "string"},
         "per_slice": {
             "type": "array",
             "items": {

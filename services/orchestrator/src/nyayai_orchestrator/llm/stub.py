@@ -123,6 +123,10 @@ def _canned_narrative(messages: list[ChatMessage]) -> dict[str, Any]:
             "protected slice. Authoritative numbers are in the metrics table; this "
             "summary restates them for a non-technical reader."
         ),
+        "summary_hi": (
+            "इस ऑडिट में कम से कम एक संरक्षित समूह पर सांख्यिकीय रूप से अर्थपूर्ण असमानताएँ पाई गई हैं। "
+            "आधिकारिक मीट्रिक नीचे की तालिका में हैं; यह सारांश गैर-तकनीकी पाठक के लिए उन्हें दोहराता है।"
+        ),
         "per_slice": per_slice,
         "recommendations": [
             {
