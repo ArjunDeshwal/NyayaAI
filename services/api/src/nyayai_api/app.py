@@ -124,12 +124,19 @@ def _run_and_persist(
     base_url: str,
     *,
     emit: Any = None,
+    train_baseline: bool = False,
 ) -> tuple[AuditResponse, Any]:
-    """Run the orchestrator and persist artifacts. Returns (response, report)."""
-    if emit is None:
-        report = run_audit(request)
-    else:
-        report = run_audit(request, emit=emit)
+    """Run the orchestrator and persist artifacts. Returns (response, report).
+
+    ``train_baseline=True`` is set for the /audit/sample paths where the
+    bundled benchmark data has no caller-supplied model — the fairness
+    engine trains an ephemeral LogisticRegression so the Counterfactual +
+    Root-Cause agents can run.
+    """
+    kwargs: dict[str, Any] = {"train_baseline": train_baseline}
+    if emit is not None:
+        kwargs["emit"] = emit
+    report = run_audit(request, **kwargs)
 
     out_dir = settings.artifacts_dir / request.audit_id
     paths = write_all(report, out_dir)
@@ -170,6 +177,8 @@ async def _stream_audit(
     settings: Settings,
     request: AuditRequest,
     base_url: str,
+    *,
+    train_baseline: bool = False,
 ) -> AsyncIterator[bytes]:
     """Run ``run_audit`` in a thread and yield NDJSON events as they fire.
 
@@ -191,7 +200,8 @@ async def _stream_audit(
     def _worker() -> None:
         try:
             response, _report = _run_and_persist(
-                settings, request, base_url, emit=emit
+                settings, request, base_url,
+                emit=emit, train_baseline=train_baseline,
             )
             response_holder["v"] = response
         except BaseException as exc:  # noqa: BLE001 — we want to surface anything
@@ -325,7 +335,11 @@ def create_app() -> FastAPI:
             override_regime=body.get("regime"),
         )
         request_obj = _build_request(submission, sample.parquet_path)
-        response, _ = _run_and_persist(settings, request_obj, str(request.base_url))
+        # Sample audits train an ephemeral baseline so the new Counterfactual
+        # + Root-Cause agents have a real predict_proba to work against.
+        response, _ = _run_and_persist(
+            settings, request_obj, str(request.base_url), train_baseline=True,
+        )
         return response
 
     @app.post("/audit/sample-stream")
@@ -346,7 +360,10 @@ def create_app() -> FastAPI:
         )
         request_obj = _build_request(submission, sample.parquet_path)
         return StreamingResponse(
-            _stream_audit(settings, request_obj, str(request.base_url)),
+            _stream_audit(
+                settings, request_obj, str(request.base_url),
+                train_baseline=True,
+            ),
             media_type="application/x-ndjson",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )

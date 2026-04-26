@@ -6,7 +6,11 @@
       ↓
     Fairness Metrics tool   ← classical Fairlearn, not an LLM
       ↓
-    Narrator (LLM)
+    Counterfactual (conditional: classical flip math + LLM narrative)
+      ↓
+    Root-Cause (conditional: classical permutation-importance + LLM narrative)
+      ↓
+    Narrator (LLM, given counterfactual + root-cause context if any)
       ↓
     Watcher (LLM)
       ↓
@@ -26,12 +30,25 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .agents import run_narrator, run_planner, run_remediation_agent, run_watcher
+from .agents import (
+    run_counterfactual_agent,
+    run_narrator,
+    run_planner,
+    run_remediation_agent,
+    run_root_cause_agent,
+    run_watcher,
+)
 from .config import OrchestratorConfig, load_config
 from .guardrails import ModelArmorHook, NoOpArmor, NoOpSDP, SDPHook
 from .llm.base import GeminiClient
 from .llm.factory import build_client
-from .schemas import AuditReport, AuditRequest, RemediationPlan
+from .schemas import (
+    AuditReport,
+    AuditRequest,
+    CounterfactualNarrative,
+    RemediationPlan,
+    RootCauseNarrative,
+)
 from .tools.fairness_tool import run_fairness_audit
 from .tools.remediation_tool import RemediationUnavailable, run_remediation
 from .tools.report_tool import ReportRenderInput, render_report
@@ -41,8 +58,9 @@ _log = logging.getLogger(__name__)
 # Event emitter contract: the orchestrator calls ``emit(phase, status, **kwargs)``
 # at the start and end of each agent step. The HTTP gateway uses this to stream
 # progress to the Flutter UI's agent timeline. ``phase`` is one of
-# {"planner","fairness","narrator","watcher","remediation","complete"}; status
-# is one of {"started","done","skipped","error"}.
+# {"planner","fairness","counterfactual","root_cause","narrator","watcher",
+# "remediation","complete"}; status is one of
+# {"started","done","skipped","error"}.
 EventEmitter = Callable[..., None]
 
 
@@ -78,11 +96,17 @@ def run_audit(
     *,
     deps: OrchestratorDeps | None = None,
     emit: EventEmitter = _noop_emit,
+    train_baseline: bool = False,
 ) -> AuditReport:
     """Run the full agent pipeline end to end.
 
     Pass an ``emit`` callable to stream per-agent progress to the UI; defaults
     to a no-op so existing call sites stay unchanged.
+
+    ``train_baseline`` is set True by the API ``/audit/sample`` path, where
+    the bundled benchmark dataset has no caller-supplied model and we want
+    counterfactual + root-cause analyses out of the box. Defaults to False
+    so the upload path's behaviour is unchanged.
     """
     d = deps or build_default_deps()
 
@@ -99,8 +123,55 @@ def run_audit(
         )
 
     with _phase("fairness"):
-        # Classical fairness tool (not an LLM).
-        result = run_fairness_audit(request, plan)
+        # Classical fairness tool (not an LLM). We only pass the
+        # ``train_baseline`` kwarg when truthy so test fixtures that monkey-
+        # patch ``run_fairness_audit`` with lambdas of the older 2-arg
+        # signature continue to work unchanged.
+        if train_baseline:
+            result = run_fairness_audit(request, plan, train_baseline=True)
+        else:
+            result = run_fairness_audit(request, plan)
+
+    # Counterfactual (individual fairness): only fires when the fairness
+    # tool produced a CounterfactualSummary, which itself only happens
+    # when ``train_baseline=True`` (we need a real predict_proba). When
+    # absent, we emit a clean ``skipped`` so the UI can render a strikethrough
+    # row without erroring.
+    counterfactual_narrative: CounterfactualNarrative | None = None
+    if result.counterfactual is not None:
+        with _phase("counterfactual"):
+            counterfactual_narrative = run_counterfactual_agent(
+                result.counterfactual,
+                client=d.client,
+                model=d.config.models.narrator,
+                armor=d.armor,
+                sdp=d.sdp,
+            )
+    else:
+        emit(
+            "counterfactual",
+            "skipped",
+            reason="train_baseline=False — counterfactual flips require a predict_proba",
+        )
+
+    # Root-Cause (proxy-feature attribution): same conditional shape.
+    root_cause_narrative: RootCauseNarrative | None = None
+    if result.root_cause is not None:
+        with _phase("root_cause"):
+            root_cause_narrative = run_root_cause_agent(
+                result.root_cause,
+                request.dataset.name,
+                client=d.client,
+                model=d.config.models.narrator,
+                armor=d.armor,
+                sdp=d.sdp,
+            )
+    else:
+        emit(
+            "root_cause",
+            "skipped",
+            reason="train_baseline=False — root-cause analysis requires permutation importance",
+        )
 
     with _phase("narrator"):
         narrative = run_narrator(
@@ -109,6 +180,8 @@ def run_audit(
             model=d.config.models.narrator,
             armor=d.armor,
             sdp=d.sdp,
+            counterfactual_narrative=counterfactual_narrative,
+            root_cause_narrative=root_cause_narrative,
         )
 
     with _phase("watcher"):
@@ -166,6 +239,8 @@ def run_audit(
             narrative=narrative,
             drift=drift,
             remediation=remediation_plan,
+            counterfactual_narrative=counterfactual_narrative,
+            root_cause_narrative=root_cause_narrative,
         )
     )
     return rendered.report

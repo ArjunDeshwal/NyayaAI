@@ -15,9 +15,11 @@ from ..schemas import (
     AuditReport,
     AuditRequest,
     AuditResult,
+    CounterfactualNarrative,
     DriftFlag,
     RemediationPlan,
     ReportNarrative,
+    RootCauseNarrative,
 )
 
 
@@ -28,6 +30,8 @@ class ReportRenderInput(BaseModel):
     narrative: ReportNarrative
     drift: DriftFlag
     remediation: RemediationPlan | None = None
+    counterfactual_narrative: CounterfactualNarrative | None = None
+    root_cause_narrative: RootCauseNarrative | None = None
 
 
 class ReportRenderOutput(BaseModel):
@@ -49,5 +53,7 @@ def render_report(payload: ReportRenderInput) -> ReportRenderOutput:
         narrative=payload.narrative,
         drift=payload.drift,
         remediation=payload.remediation,
+        counterfactual_narrative=payload.counterfactual_narrative,
+        root_cause_narrative=payload.root_cause_narrative,
     )
     return ReportRenderOutput(report=report, artifact_uri=None)

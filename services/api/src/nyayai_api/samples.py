@@ -19,7 +19,7 @@ from pathlib import Path
 # Directory inside the container that holds the bundled benchmarks. The
 # Dockerfile copies the whole repo's benchmarks/ tree under /app/benchmarks/.
 # Local dev reads from the repo root.
-_LOCAL_BENCHMARKS = Path(__file__).resolve().parents[5] / "benchmarks"
+_LOCAL_BENCHMARKS = Path(__file__).resolve().parents[4] / "benchmarks"
 _CONTAINER_BENCHMARKS = Path("/app/benchmarks")
 
 

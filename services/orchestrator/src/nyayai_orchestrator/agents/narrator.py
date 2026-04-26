@@ -20,7 +20,12 @@ from pydantic import ValidationError
 
 from ..guardrails import ModelArmorHook, SDPHook
 from ..llm.base import ChatMessage, GeminiClient
-from ..schemas import AuditResult, ReportNarrative
+from ..schemas import (
+    AuditResult,
+    CounterfactualNarrative,
+    ReportNarrative,
+    RootCauseNarrative,
+)
 
 NARRATOR_SYSTEM_PROMPT = """You are the Narrator agent inside NyayaAI. You \
 translate a fairness audit result (numbers, slices, thresholds) into a plain-\
@@ -41,8 +46,12 @@ paragraph explaining that no slices were evaluated and recommend re-planning.
 translation of ``summary``. Do not transliterate; produce natural Hindi prose. \
 Keep technical terms like "demographic parity ratio" in English in parentheses \
 the first time they appear. Length: similar to the English ``summary``.
-  6. Only emit valid JSON matching the response schema. No prose outside JSON, \
-no markdown fences."""
+  6. When the user prompt includes ``counterfactual_findings`` or \
+``root_cause_findings``, weave one sentence each into the ``summary``. Do \
+not duplicate the dedicated sections; only foreshadow them so the reader \
+sees the headline finding in the executive summary.
+  7. Only emit valid JSON matching the response schema. No prose outside \
+JSON, no markdown fences."""
 
 
 _NARRATIVE_MAX_SLICES = 12
@@ -87,13 +96,36 @@ def _condense_for_narrator(result: AuditResult) -> dict:
     }
 
 
-def _build_user_prompt(result: AuditResult) -> str:
+def _build_user_prompt(
+    result: AuditResult,
+    counterfactual_narrative: CounterfactualNarrative | None = None,
+    root_cause_narrative: RootCauseNarrative | None = None,
+) -> str:
     payload = _condense_for_narrator(result)
+    if counterfactual_narrative is not None:
+        payload["counterfactual_findings"] = {
+            "headline": counterfactual_narrative.headline,
+            "severity": counterfactual_narrative.severity,
+        }
+    if root_cause_narrative is not None:
+        payload["root_cause_findings"] = {
+            "headline": root_cause_narrative.headline,
+            "top_features": [
+                {
+                    "feature_name": d.feature_name,
+                    "contribution_to_disparity": d.contribution_to_disparity,
+                }
+                for d in root_cause_narrative.top_drivers[:3]
+            ],
+        }
     return (
         "Audit result (condensed: per-attribute metrics + worst intersectional slices):\n"
         f"{json.dumps(payload, indent=2, sort_keys=True, default=str)}\n\n"
         "Write exactly one paragraph per slice in worst_intersectional_slices "
-        "(so at most 12 paragraphs in per_slice). Return the ReportNarrative JSON now."
+        "(so at most 12 paragraphs in per_slice). If counterfactual_findings or "
+        "root_cause_findings are present, foreshadow them in one sentence each "
+        "inside ``summary`` (do not invent new sections). Return the "
+        "ReportNarrative JSON now."
     )
 
 
@@ -143,11 +175,26 @@ def run_narrator(
     model: str,
     armor: ModelArmorHook,
     sdp: SDPHook,
+    counterfactual_narrative: CounterfactualNarrative | None = None,
+    root_cause_narrative: RootCauseNarrative | None = None,
 ) -> ReportNarrative:
-    """Run the Narrator agent and return a validated :class:`ReportNarrative`."""
+    """Run the Narrator agent and return a validated :class:`ReportNarrative`.
+
+    ``counterfactual_narrative`` and ``root_cause_narrative`` are optional
+    upstream findings; when supplied, the Narrator's summary foreshadows
+    them so a reader sees the headline before drilling into the dedicated
+    sections.
+    """
     raw_messages = [
         ChatMessage(role="system", content=NARRATOR_SYSTEM_PROMPT),
-        ChatMessage(role="user", content=_build_user_prompt(result)),
+        ChatMessage(
+            role="user",
+            content=_build_user_prompt(
+                result,
+                counterfactual_narrative=counterfactual_narrative,
+                root_cause_narrative=root_cause_narrative,
+            ),
+        ),
     ]
     messages = sdp.redact(raw_messages)
     messages = armor.pre_call(messages)

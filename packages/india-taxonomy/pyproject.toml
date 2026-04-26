@@ -12,6 +12,8 @@ authors = [{ name = "NyayaAI Team", email = "team@nyayai.app" }]
 dependencies = [
   "pydantic>=2.6",
   "rapidfuzz>=3.9",
+  "pandas>=2.2",
+  "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

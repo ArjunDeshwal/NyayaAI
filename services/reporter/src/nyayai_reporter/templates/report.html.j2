@@ -196,6 +196,168 @@
 
     <p class="disclaimer">{{ report.narrative.disclaimer }}</p>
 
+    {% if report.counterfactual_narrative %}
+    {% set cf = report.counterfactual_narrative %}
+    {% set cfs = report.result.counterfactual %}
+    <h2>5. Counterfactual fairness (individual-level)</h2>
+    <div class="reco {{ cf.severity }}">
+      <div class="t">{{ cf.headline }} <span class="badge {{ cf.severity }}">{{ cf.severity }}</span></div>
+      <div style="margin-top: 6px;">{{ cf.interpretation }}</div>
+    </div>
+    {% if cfs %}
+    <dl class="kv">
+      <dt>Protected attribute</dt><dd>{{ cfs.protected_attribute }}</dd>
+      <dt>Directional flip rate</dt><dd><strong>{{ "%.1f%%" | format(cfs.directional_flip_rate * 100) }}</strong> of {{ cfs.sample_size_used }} sampled rows</dd>
+    </dl>
+    {% if cfs.flip_rate_by_pair %}
+    <h3>Flip rate by group pair</h3>
+    <table>
+      <thead><tr><th>Pair (before → after)</th><th class="num">Flip rate</th></tr></thead>
+      <tbody>
+        {% for pair, rate in cfs.flip_rate_by_pair.items() %}
+        <tr><td><code>{{ pair }}</code></td><td class="num">{{ "%.1f%%" | format(rate * 100) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if cfs.examples %}
+    <h3>Anonymised examples</h3>
+    <table>
+      <thead><tr><th>#</th><th>Before</th><th>After</th><th class="num">P(before)</th><th class="num">P(after)</th><th>Decision</th></tr></thead>
+      <tbody>
+        {% for ex in cfs.examples %}
+        <tr>
+          <td>{{ ex.row_index }}</td>
+          <td><code>{{ ex.protected_value_before }}</code></td>
+          <td><code>{{ ex.protected_value_after }}</code></td>
+          <td class="num">{{ "%.2f" | format(ex.probability_before) }}</td>
+          <td class="num">{{ "%.2f" | format(ex.probability_after) }}</td>
+          <td>{{ ex.decision_before }} → {{ ex.decision_after }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% endif %}
+    {% if cf.example_takeaways %}
+    <ul>
+      {% for t in cf.example_takeaways %}<li>{{ t }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p class="disclaimer">{{ cf.disclaimer }}</p>
+    {% endif %}
+
+    {% if report.root_cause_narrative %}
+    {% set rc = report.root_cause_narrative %}
+    {% set rcs = report.result.root_cause %}
+    <h2>6. Root-cause analysis (proxy features)</h2>
+    <div class="summary-card">{{ rc.headline }}</div>
+    {% if rc.top_drivers %}
+    <h3>Top drivers</h3>
+    <table>
+      <thead><tr><th>Feature</th><th class="num">Contribution to disparity</th><th>Why this matters in India</th></tr></thead>
+      <tbody>
+        {% for d in rc.top_drivers %}
+        <tr>
+          <td><code>{{ d.feature_name }}</code></td>
+          <td class="num">{{ "%+.3f" | format(d.contribution_to_disparity) }}</td>
+          <td>{{ d.plain_explanation }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if rc.proxy_warnings %}
+    <h3>Proxy-feature warnings</h3>
+    <ul>
+      {% for w in rc.proxy_warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if rc.suggested_actions %}
+    <h3>Suggested actions</h3>
+    <ul>
+      {% for a in rc.suggested_actions %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if rcs %}
+    <p class="disclaimer">Baseline DP gap before permutation: <strong>{{ "%.3f" | format(rcs.baseline_dp_gap) }}</strong>. {{ rc.disclaimer }}</p>
+    {% else %}
+    <p class="disclaimer">{{ rc.disclaimer }}</p>
+    {% endif %}
+    {% endif %}
+
+    {% if report.result.india_metrics %}
+    {% set im = report.result.india_metrics %}
+    <h2>7. India-specific metrics (RBI-aligned)</h2>
+    {% if im.spls %}
+    <h3>Sub-Plan Lending Shortfall (SPLS)</h3>
+    <p>Source: RBI Master Directions on Priority Sector Lending. Lower is better — gaps indicate under-allocation against the regulatory sub-target.</p>
+    <table>
+      <thead><tr><th>Group</th><th class="num">Actual %</th><th class="num">Target %</th><th class="num">Shortfall %</th></tr></thead>
+      <tbody>
+        {% for g, actual in im.spls.actual_pct_by_group.items() %}
+        <tr>
+          <td>{{ g }}</td>
+          <td class="num">{{ "%.2f" | format(actual) }}</td>
+          <td class="num">{{ "%.2f" | format(im.spls.target_pct_by_group.get(g, 0.0)) }}</td>
+          <td class="num">{{ "%.2f" | format(im.spls.shortfall_pct_by_group.get(g, 0.0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p>Worst-shortfall group: <code>{{ im.spls.worst_group or "—" }}</code>. Total shortfall amount across groups: <strong>{{ "%.2f" | format(im.spls.total_shortfall_amount) }}</strong>.</p>
+    {% endif %}
+    {% if im.lrb %}
+    <h3>Loan Rejection Bias (LRB)</h3>
+    <p>Source: RBI Digital Lending Directions §8. Ratio &lt; 0.80 trips the 4/5ths advisory.</p>
+    <table>
+      <thead><tr><th>Group</th><th class="num">Rejection rate</th><th class="num">n</th></tr></thead>
+      <tbody>
+        {% for g, rate in im.lrb.rejection_rate_by_group.items() %}
+        <tr>
+          <td>{{ g }}</td>
+          <td class="num">{{ "%.1f%%" | format(rate * 100) }}</td>
+          <td class="num">{{ im.lrb.n_by_group.get(g, 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p>Worst-best ratio: <strong>{{ "%.3f" | format(im.lrb.rejection_rate_ratio) }}</strong>
+       <span class="badge {% if im.lrb.rbi_advisory_breach %}fail{% else %}pass{% endif %}">
+         {% if im.lrb.rbi_advisory_breach %}breach{% else %}within advisory{% endif %}
+       </span>
+       — worst group: <code>{{ im.lrb.worst_group or "—" }}</code>.</p>
+    {% endif %}
+    {% if im.dlf %}
+    <h3>Digital Lending Fairness (DLF) composite</h3>
+    <p>Source: RBIH Fairness Lab Framework v1 (2024).</p>
+    <dl class="kv">
+      <dt>Composite score</dt><dd><strong>{{ "%.3f" | format(im.dlf.score) }}</strong> / 1.000</dd>
+      <dt>Disparate impact</dt><dd>{{ "%.3f" | format(im.dlf.disparate_impact) }}</dd>
+      <dt>Equal opportunity</dt><dd>{{ "%.3f" | format(im.dlf.equal_opportunity) }}</dd>
+      <dt>Calibration within groups</dt><dd>{{ "%.3f" | format(im.dlf.calibration_within_groups) }}</dd>
+    </dl>
+    {% endif %}
+    {% endif %}
+
+    {% if report.result.intersectional %}
+    <h2>8. Intersectional slices</h2>
+    <p>Compounded disparities at the intersection of two or more protected attributes (e.g. caste × gender). These often hide inside per-attribute marginals — Dalit women, for instance, can be worse off than either the &ldquo;Dalit&rdquo; or &ldquo;women&rdquo; aggregate suggests.</p>
+    <table>
+      <thead><tr><th>Slice</th><th>Metric</th><th class="num">Value</th><th class="num">n</th></tr></thead>
+      <tbody>
+        {% for m in report.result.intersectional %}
+        <tr>
+          <td><code>{{ m.slice_key }}</code></td>
+          <td>{{ m.metric }}</td>
+          <td class="num">{{ m.value | fmt_ratio }}</td>
+          <td class="num">{{ m.sample_size }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
     <div class="annex">
       <h2>Annex A — Regulatory mapping</h2>
       {% if report.request.regime == "DPDP" %}

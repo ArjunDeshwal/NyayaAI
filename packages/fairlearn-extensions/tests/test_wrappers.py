@@ -5,8 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
+
+# Property tests in this file each call into Fairlearn (pandas + numpy) which
+# is fast on a warm interpreter but can blow Hypothesis's default 200ms
+# per-example deadline on cold CI runners. The math is deterministic, so
+# disable the deadline to keep CI green without changing semantics.
+_NO_DEADLINE = settings(deadline=None, max_examples=50)
 
 from nyayai_fairlearn_ext.wrappers import (
     compute_group_fairness,
@@ -96,6 +102,7 @@ def test_intersectional_requires_at_least_one_column() -> None:
 # ----- Property tests -----
 
 
+@_NO_DEADLINE
 @given(seed=st.integers(min_value=0, max_value=1000))
 def test_dp_difference_antisymmetric_under_group_swap(seed: int) -> None:
     """Swapping group labels must negate DP difference up to sign."""
@@ -121,6 +128,7 @@ def test_dp_difference_antisymmetric_under_group_swap(seed: int) -> None:
     )
 
 
+@_NO_DEADLINE
 @given(seed=st.integers(min_value=0, max_value=1000))
 def test_dp_difference_in_range(seed: int) -> None:
     rng = np.random.default_rng(seed)
@@ -134,6 +142,7 @@ def test_dp_difference_in_range(seed: int) -> None:
     assert 0.0 <= res.equalized_odds_difference <= 1.0
 
 
+@_NO_DEADLINE
 @given(seed=st.integers(min_value=0, max_value=1000))
 def test_dp_scale_invariance(seed: int) -> None:
     """Duplicating every row must leave DP metrics unchanged."""
