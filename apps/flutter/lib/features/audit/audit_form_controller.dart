@@ -19,8 +19,7 @@ AgentPhase? _phaseFromWire(String wire) {
 }
 
 class AuditFormController extends StateNotifier<AuditFormState> {
-  AuditFormController(this._api, this._history)
-      : super(const AuditFormState());
+  AuditFormController(this._api, this._history) : super(const AuditFormState());
 
   final NyayaApiClient _api;
   final AuditHistoryRepository _history;
@@ -154,9 +153,45 @@ class AuditFormController extends StateNotifier<AuditFormState> {
         reportHtmlUrl: event.reportHtmlUrl ?? '',
         reportPdfUrl: event.reportPdfUrl,
       );
+      // Decorate the timeline rows with one-line "finding" pills so the
+      // user sees a quick verdict on each phase without opening the report.
+      var timeline = state.timeline ?? AgentTimelineState.initial();
+      final di = event.overallDisparateImpact;
+      if (di != null) {
+        timeline = timeline.updatePhase(
+          AgentPhase.fairness,
+          timeline.phases
+              .firstWhere((p) => p.phase == AgentPhase.fairness)
+              .copyWith(finding: 'DI ${di.toStringAsFixed(3)}'),
+        );
+      }
+      final drift = event.driftLevel;
+      if (drift != null) {
+        timeline = timeline.updatePhase(
+          AgentPhase.watcher,
+          timeline.phases
+              .firstWhere((p) => p.phase == AgentPhase.watcher)
+              .copyWith(finding: 'drift: $drift'),
+        );
+      }
+      final rem = state.remediationSummary;
+      if (rem != null &&
+          rem.beforeDpRatio != null &&
+          rem.afterDpRatio != null) {
+        timeline = timeline.updatePhase(
+          AgentPhase.remediation,
+          timeline.phases
+              .firstWhere((p) => p.phase == AgentPhase.remediation)
+              .copyWith(
+                finding:
+                    '${rem.beforeDpRatio!.toStringAsFixed(3)} → ${rem.afterDpRatio!.toStringAsFixed(3)}',
+              ),
+        );
+      }
       state = state.copyWith(
         status: AuditStatus.success,
         response: response,
+        timeline: timeline,
       );
       // Persist this audit to localStorage history. Best-effort.
       _history.add(

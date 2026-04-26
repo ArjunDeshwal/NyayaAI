@@ -74,7 +74,7 @@ class AgentTimeline extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Five agents collaborate on every audit. Watch their progress live.',
+              'Seven agents collaborate on every audit. Watch their progress live.',
               style: TextStyle(color: NyayaColors.muted, fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -149,7 +149,8 @@ class _AgentRow extends StatelessWidget {
       label: '${state.phase.displayName}. '
           '${state.phase.subtitle}. '
           'Status: ${_statusLabel(state.status)}'
-          '${state.elapsedMs != null ? ", ${_formatElapsed(state.elapsedMs!)}." : "."}',
+          '${state.elapsedMs != null ? ", ${_formatElapsed(state.elapsedMs!)}." : "."}'
+          '${state.finding != null ? " Finding: ${state.finding}." : ""}',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -177,6 +178,31 @@ class _AgentRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (state.finding != null) ...[
+              ExcludeSemantics(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: NyayaColors.saffron.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: NyayaColors.saffron.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Text(
+                    state.finding!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: NyayaColors.ink,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (state.elapsedMs != null && state.status != AgentRunStatus.error)
               ExcludeSemantics(
                 child: Container(
@@ -185,8 +211,9 @@ class _AgentRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFE0E7FF),
                     borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: NyayaColors.navy.withValues(alpha: 0.25)),
+                    border: Border.all(
+                      color: NyayaColors.navy.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Text(
                     _formatElapsed(state.elapsedMs!),

@@ -7,7 +7,9 @@ import '../../app/theme.dart';
 import '../../shared/api/api_client.dart';
 import '../../shared/api/sample_dataset.dart';
 import '../../shared/widgets/disclaimer_footer.dart';
-import '../landing/landing_banner.dart';
+import '../landing/hero_section.dart';
+import '../landing/trust_strip.dart';
+import '../landing/why_nyayai_card.dart';
 import 'audit_form_controller.dart';
 import 'audit_form_state.dart';
 import 'audit_result_view.dart';
@@ -17,6 +19,11 @@ import 'widgets/file_drop_zone.dart';
 import 'widgets/protected_columns_field.dart';
 import 'widgets/regime_selector.dart';
 import 'widgets/sample_chip_row.dart';
+
+/// Sample id of the bundled MUDRA-Lite preset. Used by the hero CTA + the
+/// floating demo button — both submit a `/audit/sample-stream` against this
+/// id without forcing the user to fill out the form.
+const String _mudraLiteSampleId = 'mudra-lite';
 
 class AuditFormScreen extends ConsumerStatefulWidget {
   const AuditFormScreen({super.key});
@@ -41,6 +48,15 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
   /// file picker is disabled.
   SampleDataset? _selectedSample;
 
+  // ---- Scroll machinery for hero CTA → form / form → result transitions.
+  final _scrollController = ScrollController();
+  final _formAnchorKey = GlobalKey();
+  final _resultAnchorKey = GlobalKey();
+
+  /// Set after we auto-scroll to the result for a given audit id, so we don't
+  /// keep re-scrolling on every rebuild.
+  String? _scrolledForAuditId;
+
   @override
   void dispose() {
     _datasetNameCtrl.dispose();
@@ -48,6 +64,7 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
     _protectedCtrl.dispose();
     _outcomeCtrl.dispose();
     _scoreCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -78,13 +95,50 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
       _scoreCtrl.text = ds.modelScoreColumn ?? '';
       _regime = _regimeFromWire(ds.defaultRegime);
       _fileError = null;
-      // The bundled dataset replaces the upload — drop any picked file.
       _picked = null;
     });
   }
 
   void _onSampleCleared() {
     setState(() => _selectedSample = null);
+  }
+
+  /// Scrolls the form anchor into view (used by hero "Run an audit" CTA).
+  void _scrollToForm() {
+    _scrollToAnchor(_formAnchorKey);
+  }
+
+  void _scrollToAnchor(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+      alignment: 0.0,
+    );
+  }
+
+  /// One-tap demo: load MUDRA-Lite via the catalog, then submit immediately.
+  Future<void> _runQuickDemo() async {
+    final samples = await ref.read(sampleCatalogProvider.future);
+    final mudra = samples.firstWhere(
+      (s) => s.id == _mudraLiteSampleId,
+      orElse: () => samples.isNotEmpty
+          ? samples.first
+          : throw StateError('No samples available'),
+    );
+    _onSampleSelected(mudra);
+    // Move the user to the timeline so they see something happen immediately.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToForm());
+    await ref.read(auditFormControllerProvider.notifier).submitSample(
+          AuditSampleRequest(
+            sampleId: mudra.id,
+            goal: mudra.defaultGoal,
+            regime: _regimeFromWire(mudra.defaultRegime),
+          ),
+          datasetLabel: mudra.name,
+        );
   }
 
   Future<void> _submit() async {
@@ -137,46 +191,107 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
     final state = ref.watch(auditFormControllerProvider);
     final submitting = state.isSubmitting;
 
+    // Auto-scroll to the result card the first time it appears for this audit.
+    if (state.hasResult) {
+      final id = state.response?.auditId;
+      if (id != null && id.isNotEmpty && id != _scrolledForAuditId) {
+        _scrolledForAuditId = id;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToAnchor(_resultAnchorKey);
+        });
+      }
+    } else if (state.timeline == null) {
+      _scrolledForAuditId = null;
+    }
+
+    final pageWidth = MediaQuery.sizeOf(context).width;
+    final isWide = pageWidth >= 720;
+    final hPad = isWide ? 40.0 : 16.0;
+
     return Scaffold(
       body: FocusTraversalGroup(
         policy: ReadingOrderTraversalPolicy(),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _TopBar(),
-                    const LandingBanner(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(40, 32, 40, 24),
-                      child: _buildFormCard(state, submitting),
-                    ),
-                    if (state.timeline != null && !state.hasResult)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(40, 0, 40, 24),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: AgentTimeline(
-                            key: ValueKey<bool>(state.hasError),
-                            timeline: state.timeline!,
-                            errorMessage:
-                                state.hasError ? state.errorMessage : null,
-                          ),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _TopBar(submitting: submitting),
+                        HeroSection(
+                          onPrimaryCtaTap: _scrollToForm,
+                          onTryDemoTap: submitting ? () {} : _runQuickDemo,
                         ),
-                      ),
-                    if (state.hasResult)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(40, 0, 40, 32),
-                        child: AuditResultView(response: state.response!),
-                      ),
-                    const DisclaimerFooter(),
-                  ],
+                        const TrustStrip(),
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            hPad,
+                            isWide ? 32 : 24,
+                            hPad,
+                            12,
+                          ),
+                          child: const WhyNyayaaiCard(),
+                        ),
+                        Padding(
+                          key: _formAnchorKey,
+                          padding: EdgeInsets.fromLTRB(
+                            hPad,
+                            isWide ? 32 : 20,
+                            hPad,
+                            16,
+                          ),
+                          child: _buildFormCard(state, submitting),
+                        ),
+                        if (state.timeline != null && !state.hasResult)
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 16),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: AgentTimeline(
+                                key: ValueKey<bool>(state.hasError),
+                                timeline: state.timeline!,
+                                errorMessage:
+                                    state.hasError ? state.errorMessage : null,
+                              ),
+                            ),
+                          ),
+                        if (state.hasResult)
+                          Padding(
+                            key: _resultAnchorKey,
+                            padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 24),
+                            child: Column(
+                              children: [
+                                if (state.timeline != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: AgentTimeline(
+                                      timeline: state.timeline!,
+                                    ),
+                                  ),
+                                AuditResultView(response: state.response!),
+                              ],
+                            ),
+                          ),
+                        const DisclaimerFooter(),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+              // Floating "Run MUDRA-Lite demo" — only when no audit is in
+              // flight and no result is showing yet.
+              if (!submitting && !state.hasResult)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: _FloatingDemoCta(onTap: _runQuickDemo),
+                ),
+            ],
           ),
         ),
       ),
@@ -186,40 +301,50 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
   Widget _buildFormCard(AuditFormState state, bool submitting) {
     final hint = RegimeHint.forRegime(_regime);
     final usingSample = _selectedSample != null;
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(isWide ? 28 : 18),
         child: Form(
           key: _formKey,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  'Run an audit',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.science_outlined,
+                    size: 24,
+                    color: NyayaColors.navy,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        'Run an audit',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               const Text(
-                'Upload a dataset (CSV or Parquet), name the protected columns, '
-                'and NyayaAI will run three agents — fairness, drift, and '
-                'narrative — then render a regulator-ready audit report.',
+                'Upload a dataset (CSV / Parquet) — or load a bundled sample. '
+                'Name the protected columns and NyayaAI runs seven agents end '
+                'to end, then renders a regulator-ready audit report.',
                 style: TextStyle(color: NyayaColors.muted, fontSize: 14),
               ),
               const SizedBox(height: 20),
-
-              // Feature A — bundled-dataset preset chips.
               SampleChipRow(
                 selectedSampleId: _selectedSample?.id,
                 onSelected: submitting ? (_) {} : _onSampleSelected,
                 onCleared: submitting ? () {} : _onSampleCleared,
               ),
               const SizedBox(height: 20),
-
               if (usingSample)
                 _BundledPill(label: _selectedSample!.name)
               else
@@ -234,12 +359,12 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                   liveRegion: true,
                   child: Text(
                     _fileError!,
-                    style: const TextStyle(color: NyayaColors.fail, fontSize: 13),
+                    style:
+                        const TextStyle(color: NyayaColors.fail, fontSize: 13),
                   ),
                 ),
               ],
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _datasetNameCtrl,
                 enabled: !submitting,
@@ -257,8 +382,6 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                 },
               ),
               const SizedBox(height: 16),
-
-              // Feature E — placeholder + helper text follow the regime.
               TextFormField(
                 controller: _goalCtrl,
                 enabled: !submitting,
@@ -274,18 +397,18 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                 ),
                 validator: (v) {
                   final t = v?.trim() ?? '';
-                  if (t.length < 5) return 'Please describe the audit goal (min 5 chars).';
+                  if (t.length < 5) {
+                    return 'Please describe the audit goal (min 5 chars).';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-
               ProtectedColumnsField(
                 controller: _protectedCtrl,
                 enabled: !submitting,
               ),
               const SizedBox(height: 16),
-
               TextFormField(
                 controller: _outcomeCtrl,
                 enabled: !submitting,
@@ -302,7 +425,6 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                 },
               ),
               const SizedBox(height: 16),
-
               TextFormField(
                 controller: _scoreCtrl,
                 enabled: !submitting,
@@ -311,19 +433,17 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                   labelText: 'Model score column (optional)',
                   hintText: 'e.g. pred_score',
                   prefixIcon: Icon(Icons.query_stats_outlined),
-                  helperText: 'Leave blank if you only have ground-truth outcomes.',
+                  helperText:
+                      'Leave blank if you only have ground-truth outcomes.',
                 ),
               ),
               const SizedBox(height: 16),
-
               RegimeSelector(
                 value: _regime,
                 onChanged: (r) => setState(() => _regime = r),
                 enabled: !submitting,
               ),
-
               const SizedBox(height: 24),
-
               if (state.hasError)
                 Semantics(
                   liveRegion: true,
@@ -338,7 +458,10 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: NyayaColors.fail),
+                        const Icon(
+                          Icons.error_outline,
+                          color: NyayaColors.fail,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -350,7 +473,6 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                     ),
                   ),
                 ),
-
               Row(
                 children: [
                   Expanded(
@@ -368,8 +490,9 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.play_arrow),
@@ -415,14 +538,17 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
   }
 }
 
-/// Top bar with the History link (Feature F entry point).
+/// Top navigation bar with brand wordmark + History + Compare links.
 class _TopBar extends StatelessWidget {
-  const _TopBar();
+  const _TopBar({required this.submitting});
+
+  final bool submitting;
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
     return Container(
-      padding: const EdgeInsets.fromLTRB(40, 12, 24, 12),
+      padding: EdgeInsets.fromLTRB(isWide ? 40 : 16, 12, isWide ? 24 : 8, 12),
       decoration: const BoxDecoration(
         color: NyayaColors.card,
         border: Border(bottom: BorderSide(color: NyayaColors.border)),
@@ -430,26 +556,91 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           ExcludeSemantics(
-            child: Text(
-              'NyayaAI',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: NyayaColors.navy,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
+            child: GestureDetector(
+              onTap: () => context.go('/'),
+              child: Text(
+                'NyayaAI',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: NyayaColors.navy,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
+              ),
             ),
           ),
           const Spacer(),
           Semantics(
             button: true,
+            enabled: !submitting,
+            label: 'Compare two audits side by side.',
+            child: TextButton.icon(
+              onPressed: submitting ? null : () => context.go('/compare'),
+              icon: const Icon(Icons.compare_arrows, size: 18),
+              label: Text(isWide ? 'Compare' : ''),
+            ),
+          ),
+          Semantics(
+            button: true,
+            enabled: !submitting,
             label: 'View past audits stored in this browser.',
             child: TextButton.icon(
-              onPressed: () => context.go('/history'),
+              onPressed: submitting ? null : () => context.go('/history'),
               icon: const Icon(Icons.history, size: 18),
-              label: const Text('History'),
+              label: Text(isWide ? 'History' : ''),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Floating circular CTA — "Run MUDRA-Lite demo" — visible on the form
+/// when no audit is in flight. Shrinks to an icon-only mini-FAB on phone.
+class _FloatingDemoCta extends StatelessWidget {
+  const _FloatingDemoCta({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
+    return Semantics(
+      button: true,
+      label: 'One-tap MUDRA-Lite demo. Submits a real audit against the '
+          'bundled Indian micro-loan dataset.',
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(28),
+        color: NyayaColors.navy,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isWide ? 18 : 14,
+              vertical: 12,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.bolt, color: Colors.white, size: 20),
+                if (isWide) ...[
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Demo MUDRA-Lite',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
