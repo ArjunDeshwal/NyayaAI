@@ -7,8 +7,8 @@ import '../../app/theme.dart';
 import '../../shared/api/api_client.dart';
 import '../../shared/api/sample_dataset.dart';
 import '../../shared/widgets/disclaimer_footer.dart';
+import '../auth/auth_provider.dart';
 import '../landing/hero_section.dart';
-import '../landing/trust_strip.dart';
 import '../landing/why_nyayai_card.dart';
 import 'audit_form_controller.dart';
 import 'audit_form_state.dart';
@@ -227,7 +227,6 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
                           onPrimaryCtaTap: _scrollToForm,
                           onTryDemoTap: submitting ? () {} : _runQuickDemo,
                         ),
-                        const TrustStrip(),
                         Padding(
                           padding: EdgeInsets.fromLTRB(
                             hPad,
@@ -539,14 +538,15 @@ class _AuditFormScreenState extends ConsumerState<AuditFormScreen> {
 }
 
 /// Top navigation bar with brand wordmark + History + Compare links.
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   const _TopBar({required this.submitting});
 
   final bool submitting;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final asyncUser = ref.watch(authUserProvider);
     return Container(
       padding: EdgeInsets.fromLTRB(isWide ? 40 : 16, 12, isWide ? 24 : 8, 12),
       decoration: const BoxDecoration(
@@ -589,7 +589,170 @@ class _TopBar extends StatelessWidget {
               label: Text(isWide ? 'History' : ''),
             ),
           ),
+          const SizedBox(width: 4),
+          asyncUser.when(
+            loading: () => const SizedBox(
+              width: 32,
+              height: 32,
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (user) {
+              if (user == null) {
+                return Semantics(
+                  button: true,
+                  label: 'Sign in to NyayaAI.',
+                  child: FilledButton.icon(
+                    onPressed: submitting
+                        ? null
+                        : () => context.go('/signin'),
+                    icon: const Icon(Icons.login, size: 16),
+                    label: Text(isWide ? 'Sign in' : 'Sign in'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return _UserMenu(user: user, isWide: isWide);
+            },
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _UserMenu extends ConsumerWidget {
+  const _UserMenu({required this.user, required this.isWide});
+
+  final dynamic user; // firebase_auth `User`; kept dynamic to avoid forced import on this top-level file.
+  final bool isWide;
+
+  String _initial() {
+    final name = (user.displayName as String?)?.trim();
+    if (name != null && name.isNotEmpty) return name.substring(0, 1).toUpperCase();
+    final email = (user.email as String?)?.trim();
+    if (email != null && email.isNotEmpty) return email.substring(0, 1).toUpperCase();
+    return 'G'; // Guest
+  }
+
+  String _label() {
+    final name = (user.displayName as String?)?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final email = (user.email as String?)?.trim();
+    if (email != null && email.isNotEmpty) return email;
+    return 'Guest';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAnon = (user.isAnonymous as bool?) ?? false;
+    return PopupMenuButton<String>(
+      tooltip: 'Account',
+      offset: const Offset(0, 44),
+      onSelected: (v) async {
+        if (v == 'signout') {
+          await ref.read(authServiceProvider).signOut();
+        } else if (v == 'upgrade') {
+          context.go('/signin');
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _label(),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: NyayaColors.ink,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                isAnon ? 'guest session' : 'signed in',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: NyayaColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        if (isAnon)
+          const PopupMenuItem<String>(
+            value: 'upgrade',
+            child: Row(
+              children: [
+                Icon(Icons.upgrade, size: 18, color: NyayaColors.navy),
+                SizedBox(width: 10),
+                Text('Sign up to keep audits'),
+              ],
+            ),
+          ),
+        const PopupMenuItem<String>(
+          value: 'signout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 18, color: NyayaColors.muted),
+              SizedBox(width: 10),
+              Text('Sign out'),
+            ],
+          ),
+        ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isAnon
+                    ? NyayaColors.muted.withValues(alpha: 0.20)
+                    : NyayaColors.navy,
+              ),
+              child: Center(
+                child: Text(
+                  _initial(),
+                  style: TextStyle(
+                    color: isAnon ? NyayaColors.ink : Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            if (isWide) ...[
+              const SizedBox(width: 8),
+              Text(
+                isAnon ? 'Guest' : _label(),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: NyayaColors.ink,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.expand_more, size: 16, color: NyayaColors.muted),
+            ],
+          ],
+        ),
       ),
     );
   }

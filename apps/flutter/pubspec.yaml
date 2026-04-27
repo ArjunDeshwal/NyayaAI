@@ -35,6 +35,12 @@ dependencies:
   # Web platform interop — used for browser-localStorage history.
   web: ^1.1.0
 
+  # Firebase Auth (web): email/password + anonymous sign-in. Wired through
+  # FirebaseAuth.instance.authStateChanges() and exposed as a Riverpod
+  # AsyncValue<User?>.
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+
   # Shared Dart contracts (AuditResponse, Regime)
   nyayai_contracts:
     path: ../../packages/contracts/dart/nyayai_contracts

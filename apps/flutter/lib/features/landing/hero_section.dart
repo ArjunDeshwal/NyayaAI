@@ -103,47 +103,10 @@ class _BrandRow extends StatelessWidget {
       ),
     );
 
-    const chipBar = Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.end,
-      children: [
-        _SmallChip(
-          icon: Icons.flag_outlined,
-          label: 'GSC 2026',
-          fg: NyayaColors.navy,
-          bg: Color(0xFFE0E7FF),
-        ),
-        _SmallChip(
-          icon: Icons.public,
-          label: 'SDG 10.3',
-          fg: NyayaColors.green,
-          bg: Color(0xFFD1FAE5),
-        ),
-        _SmallChip(
-          icon: Icons.balance_outlined,
-          label: 'Apache-2.0',
-          fg: NyayaColors.muted,
-          bg: Color(0xFFF3F4F6),
-        ),
-      ],
-    );
-
-    if (isWide) {
-      return Row(
-        children: [
-          wordmark,
-          const Spacer(),
-          chipBar,
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
         wordmark,
-        const SizedBox(height: 12),
-        chipBar,
+        const Spacer(),
       ],
     );
   }
@@ -293,43 +256,7 @@ class _CtaRow extends StatelessWidget {
             ),
           ),
         ),
-        const _TrustBadge(),
       ],
-    );
-  }
-}
-
-class _TrustBadge extends StatelessWidget {
-  const _TrustBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: NyayaColors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: NyayaColors.border),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.lock_outline,
-            size: 14,
-            color: NyayaColors.muted,
-          ),
-          SizedBox(width: 6),
-          Text(
-            'Model Armor + Sensitive Data Protection',
-            style: TextStyle(
-              fontSize: 12,
-              color: NyayaColors.muted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -343,28 +270,23 @@ class _StatStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     const stats = [
       _Stat(
-        value: '1.4 B',
-        unit: 'Indians',
-        caption: 'on Digital Public Infrastructure',
+        value: '7',
+        unit: 'agents',
+        caption:
+            'Planner · Fairness · Counterfactual · Root-Cause · Narrator · Watcher · Remediation',
         color: NyayaColors.saffron,
       ),
       _Stat(
         value: '~70 s',
         unit: 'end-to-end',
-        caption: 'replaces a 2-week audit',
+        caption: 'streamed agent timeline on Cloud Run',
         color: NyayaColors.navy,
       ),
       _Stat(
-        value: '0.424',
-        unit: '→ 0.719',
-        caption: 'live MUDRA-Lite remediation',
+        value: '3',
+        unit: 'regimes',
+        caption: 'DPDP Rule 13 · EU AI Act 9–15 · RBI Digital Lending',
         color: NyayaColors.green,
-      ),
-      _Stat(
-        value: '152',
-        unit: 'tests passing',
-        caption: 'Apache-2.0 · 7 ADK agents',
-        color: NyayaColors.muted,
       ),
     ];
     if (isWide) {
@@ -622,43 +544,3 @@ class _Step extends StatelessWidget {
   }
 }
 
-class _SmallChip extends StatelessWidget {
-  const _SmallChip({
-    required this.icon,
-    required this.label,
-    required this.fg,
-    required this.bg,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color fg;
-  final Color bg;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: fg,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

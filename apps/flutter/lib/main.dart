@@ -1,10 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
   // Initialize Flutter bindings explicitly to avoid a startup race where
   // SemanticsBinding.instance is touched before WidgetsFlutterBinding ran.
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,5 +17,17 @@ void main() {
   if (kIsWeb) {
     WidgetsBinding.instance.ensureSemantics();
   }
+
+  // Firebase. Auth state stream is the only thing we use for now; failure
+  // here should not block the app — the user can still browse and run
+  // sample audits without an account.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase init failed (continuing without auth): $e');
+  }
+
   runApp(const ProviderScope(child: NyayaApp()));
 }
