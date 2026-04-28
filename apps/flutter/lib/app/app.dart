@@ -13,17 +13,25 @@ import 'theme.dart';
 /// `GoRouter` re-evaluates its `redirect` whenever this notifies. We piggy-
 /// back on `authStateChanges()` so signing in / signing out causes
 /// protected-route guards to re-check immediately.
+///
+/// Tolerates Firebase being uninitialized: if the FirebaseAuth.instance
+/// access throws (e.g. firebase_core_web plugin glue missing on this build),
+/// the notifier silently no-ops instead of crashing the app at startup.
 class _AuthChangeNotifier extends ChangeNotifier {
   _AuthChangeNotifier() {
-    _sub = FirebaseAuth.instance.authStateChanges().listen((_) {
-      notifyListeners();
-    });
+    try {
+      _sub = FirebaseAuth.instance.authStateChanges().listen((_) {
+        notifyListeners();
+      });
+    } catch (_) {
+      _sub = null;
+    }
   }
-  late final StreamSubscription<User?> _sub;
+  StreamSubscription<User?>? _sub;
 
   @override
   void dispose() {
-    _sub.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 }

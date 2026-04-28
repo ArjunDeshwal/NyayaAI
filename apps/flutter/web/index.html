@@ -62,11 +62,11 @@
   </style>
 </head>
 <body>
-  <div id="loading" role="status" aria-live="polite">
+  <div id="loading" role="status" aria-live="polite" style="pointer-events: none;">
     <div class="label">Loading NyayaAI…</div>
     <div class="bar"><div></div></div>
     <div class="sublabel">First visit downloads ~7&nbsp;MB of the Flutter engine. Subsequent visits are instant.</div>
-    <div id="fallback" role="alert">
+    <div id="fallback" role="alert" style="pointer-events: auto;">
       <h3>Still loading after 25 seconds.</h3>
       <p>An old cached version of the app may be blocking this page. Click the button below to clear the cache and reload.</p>
       <button id="reset-btn">Clear cache &amp; reload</button>
@@ -75,16 +75,23 @@
   </div>
   <script src="flutter_bootstrap.js" async></script>
   <script>
-    // If Flutter hasn't booted in 25s, show the fallback recovery button.
-    // Flutter removes the #loading div on successful boot.
-    setTimeout(function() {
+    // Remove the loading splash on Flutter's first frame so the canvas can
+    // claim the full viewport. The splash is `pointer-events:none` so it
+    // never blocks Flutter input even before this fires.
+    window.addEventListener('flutter-first-frame', function () {
+      var l = document.getElementById('loading');
+      if (l) l.remove();
+    });
+
+    // If Flutter hasn't booted in 25s, surface the cache-clear recovery UI.
+    setTimeout(function () {
       var fb = document.getElementById('fallback');
       if (fb && document.getElementById('loading')) { fb.style.display = 'flex'; }
     }, 25000);
 
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       if (e.target && e.target.id === 'reset-btn') {
-        (async function() {
+        (async function () {
           try {
             if ('serviceWorker' in navigator) {
               var regs = await navigator.serviceWorker.getRegistrations();

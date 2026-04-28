@@ -3,18 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Live `User?` stream from Firebase Auth.
 ///
-/// `null` -> signed out; an anonymous user counts as signed-in. Routes that
-/// require a real account (history, compare) check both `value != null`
-/// and `!user.isAnonymous` if they want to gate features behind a
-/// persistent account, but the prototype gates on signed-in only.
-final authUserProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
+/// Tolerates Firebase being uninitialized (e.g. when the firebase_core_web
+/// plugin glue is missing on the deployed bundle): in that case the stream
+/// emits `null` and the UI degrades to a logged-out experience.
+final authUserProvider = StreamProvider<User?>((ref) async* {
+  try {
+    yield* FirebaseAuth.instance.authStateChanges();
+  } catch (_) {
+    yield null;
+  }
 });
 
 /// Synchronous "is the user authenticated right now" — useful for go_router
 /// redirects which don't have async state.
 bool isAuthenticatedNow() {
-  return FirebaseAuth.instance.currentUser != null;
+  try {
+    return FirebaseAuth.instance.currentUser != null;
+  } catch (_) {
+    return false;
+  }
 }
 
 /// Wraps `FirebaseAuth` calls with consistent error mapping.

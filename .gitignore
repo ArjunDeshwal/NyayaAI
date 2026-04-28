@@ -72,5 +72,28 @@ service-account*.json
 # Artifacts
 *.pdf
 !docs/**/*.pdf
-!docs/letters/*.pdf
 coverage/
+
+# Local dev / cache
+.hypothesis/
+
+# Private development tooling — not for public evaluators
+.claude/
+CLAUDE.md
+skills-lock.json
+
+# Internal planning + reference docs (private to the team)
+IMPLEMENTATION_PLAN.md
+problemStatement.txt
+evaluationCriteria.txt
+
+# GSC working files (deck source, video drafts, NGO outreach drafts)
+*.pptx
+!docs/architecture/**/*.pptx
+docs/PITCH_DECK_GSC.md
+docs/PITCH_DECK_PLAINTEXT.txt
+docs/DEMO_VIDEO_SCRIPT.md
+docs/VIDEO_SCRIPT.md
+docs/VIDEO_SHOT_LIST.md
+docs/letters/
+docs/announcements/
