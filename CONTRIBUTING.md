@@ -1,15 +1,6 @@
 # Contributing to NyayaAI
 
-NyayaAI is built for the Google Solution Challenge 2026. Core team is four. Contributions from outside are welcome after the submission window.
-
-## Team roles
-
-| Role | Owns |
-|---|---|
-| Tech Lead / Backend / Infra | Fairness engine, agent infra, Terraform, security |
-| AI/ML Engineer | Gemini prompts, ADK flows, counterfactual generation, evals, root-cause |
-| Flutter Engineer | Mobile app, web app, a11y, voice, Gemini Nano offline |
-| Product / Research / Content | Problem research, demo scenario, pitch, video, NGO outreach |
+NyayaAI is built for the Google Solution Challenge 2026. Contributions from outside are welcome after the submission window.
 
 ## Branching
 
